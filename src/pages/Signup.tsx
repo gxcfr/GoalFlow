@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Target, AlertCircle, Info, ArrowRight } from 'lucide-react';
+import { Target, AlertCircle, Info, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -12,6 +12,7 @@ export default function Signup() {
     role: 'Employee',
     department: 'Engineering'
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -95,7 +96,16 @@ export default function Signup() {
 
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                  <input name="password" type="password" required value={formData.password} onChange={handleChange} className="w-full px-4 py-2.5 bg-white/60 border border-white/80 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all sm:text-sm" />
+                  <div className="relative">
+                    <input name="password" type={showPassword ? "text" : "password"} required value={formData.password} onChange={handleChange} className="w-full px-4 py-2.5 bg-white/60 border border-white/80 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all sm:text-sm" />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>

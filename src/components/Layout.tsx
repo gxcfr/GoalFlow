@@ -14,12 +14,10 @@ export default function Layout() {
       case 'Manager_L1':
         return [
           { name: 'My Team', href: '/manager', icon: Users },
-          { name: 'My Goals', href: '/goals', icon: TargetIcon },
         ];
       case 'Admin_HR':
         return [
           { name: 'Admin Dashboard', href: '/admin', icon: LayoutDashboard },
-          { name: 'Settings', href: '/admin/settings', icon: Settings },
         ];
       default:
         return [];
