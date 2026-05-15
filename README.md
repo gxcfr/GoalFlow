@@ -63,24 +63,3 @@ The system features strict Row Level Security (RLS) managed by Supabase, tailore
 *   **Collapsible Sidebar Navigation:** A smooth, responsive side navigation menu with fluid hover-expand animations designed to maximize screen real estate for deep-focus work.
 *   **Custom Brand Integration:** Integrates custom SVG logos mapped accurately and responsively across both Desktop sidebars and Mobile viewports.
 *   **Fully Responsive Layout:** The entire portal scales flawlessly across ultra-wide desktop monitors, standard laptops, tablets, and mobile devices.
-
----
-
-## Local Setup & Development
-
-1. **Clone the repository.**
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-3. **Configure Environment Variables:**
-   Create a `.env.local` file in the root directory and add your Supabase credentials:
-   ```env
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
-4. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
-5. **Open your browser:** Navigate to `http://localhost:5173`
