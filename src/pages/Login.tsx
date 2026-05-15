@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Target, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import Logo from '../components/logo';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -33,8 +34,8 @@ export default function Login() {
       <div className="hidden lg:flex lg:w-1/2 bg-mesh-dark relative items-center justify-center overflow-hidden">
         <div className="absolute inset-0 bg-navy-900/40"></div>
         <div className="relative z-10 flex flex-col items-center text-center px-12 animate-fade-in-up">
-          <div className="w-24 h-24 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center mb-8 border border-white/20 shadow-2xl">
-            <Target className="h-12 w-12 text-blue-400" />
+          <div className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex items-center justify-center mb-8 shadow-2xl">
+            <Logo className="h-16 w-auto" />
           </div>
           <h1 className="text-5xl font-bold text-white mb-6 tracking-tight">Enterprise Goal Tracking</h1>
           <p className="text-lg text-blue-100/80 max-w-md font-light leading-relaxed">
@@ -51,8 +52,8 @@ export default function Login() {
       <div className="w-full lg:w-1/2 flex items-center justify-center bg-mesh px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md space-y-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           <div>
-            <div className="flex lg:hidden justify-center text-navy-900 mb-6">
-              <Target className="h-10 w-10 text-blue-600" />
+            <div className="flex lg:hidden justify-center mb-6">
+              <Logo className="h-12 w-auto" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Welcome back</h2>
             <p className="mt-2 text-sm text-gray-600">Please enter your credentials to access your portal.</p>

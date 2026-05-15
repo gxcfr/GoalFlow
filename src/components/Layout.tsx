@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Target, LogOut, LayoutDashboard, Target as TargetIcon, Users } from 'lucide-react';
+import { LogOut, LayoutDashboard, Target as TargetIcon, Users } from 'lucide-react';
+import Logo from './logo';
 
 export default function Layout() {
   const { profile, signOut } = useAuth();
@@ -31,10 +32,7 @@ export default function Layout() {
       <div className="hidden md:flex md:flex-col p-6 pr-0 z-50 group transition-all duration-300 ease-in-out w-[120px] hover:w-72">
         <div className="flex flex-col flex-grow glass-panel rounded-3xl overflow-hidden animate-fade-in transition-all duration-300">
           <div className="flex items-center flex-shrink-0 px-6 py-8">
-            <div className="w-10 h-10 flex-shrink-0 bg-navy-900 rounded-xl flex items-center justify-center shadow-md">
-              <Target className="h-6 w-6 text-white" />
-            </div>
-            <span className="ml-3 text-2xl font-bold text-navy-900 tracking-tight whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">GoalFlow</span>
+            <Logo className="h-10 w-auto flex-shrink-0" />
           </div>
           
           <div className="mt-4 flex-grow flex flex-col">
