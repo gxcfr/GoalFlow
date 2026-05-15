@@ -39,8 +39,8 @@ export default function AdminDashboard() {
       setSheets(allSheets);
       setStats({
         totalEmployees: employeeData?.length || 0,
-        sheetsSubmitted: allSheets.filter(s => s.status === 'Submitted').length,
-        sheetsApproved: allSheets.filter(s => s.status === 'Approved').length,
+        sheetsSubmitted: allSheets.filter(s => s.status && s.status.includes('Submitted')).length,
+        sheetsApproved: allSheets.filter(s => s.status && s.status.includes('Approved')).length,
         sheetsLocked: allSheets.filter(s => s.status === 'Locked').length
       });
     }
@@ -94,7 +94,7 @@ export default function AdminDashboard() {
       return;
     }
 
-    const headers = ['Employee', 'Department', 'Thrust Area', 'Goal', 'Target', 'UOM', 'Q1 Actual', 'Q1 Status', 'Q2 Actual', 'Q2 Status'];
+    const headers = ['Employee', 'Department', 'Thrust Area', 'Goal', 'Target', 'UOM', 'Q1 Actual', 'Q1 Status', 'Q2 Actual', 'Q2 Status', 'Q3 Actual', 'Q3 Status', 'Q4 Actual', 'Q4 Status'];
     const rows = goals.map((g: any) => [
       `"${g.goal_sheets?.profiles?.full_name || 'Unknown'}"`,
       `"${g.goal_sheets?.profiles?.department || 'Unknown'}"`,
@@ -105,7 +105,11 @@ export default function AdminDashboard() {
       `"${g.actual_q1 || ''}"`,
       `"${g.status_q1 || ''}"`,
       `"${g.actual_q2 || ''}"`,
-      `"${g.status_q2 || ''}"`
+      `"${g.status_q2 || ''}"`,
+      `"${g.actual_q3 || ''}"`,
+      `"${g.status_q3 || ''}"`,
+      `"${g.actual_q4 || ''}"`,
+      `"${g.status_q4 || ''}"`
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -224,14 +228,15 @@ export default function AdminDashboard() {
               <table className="min-w-full divide-y divide-gray-100">
                 <thead className="bg-gray-50/50">
                   <tr>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name</th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
                     <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Department</th>
                     <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Goal Sheet Status</th>
                     <th scope="col" className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white/60 divide-y divide-gray-100">
-                  {employees.map((employee) => {
+                  {[...employees, ...managers].map((employee) => {
                     const status = getCompletionStatus(employee.id);
                     return (
                       <tr key={employee.id} className="hover:bg-white/80 transition-colors">
@@ -244,14 +249,19 @@ export default function AdminDashboard() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
+                          <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold tracking-wider ${employee.role === 'Manager_L1' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
+                            {employee.role.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
                           {employee.department || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm
                             ${status === 'Not Started' ? 'bg-gray-100 text-gray-600' : ''}
                             ${status === 'Draft' ? 'bg-gray-100 text-gray-700' : ''}
-                            ${status === 'Submitted' ? 'bg-blue-100 text-blue-700' : ''}
-                            ${status === 'Approved' ? 'bg-green-100 text-green-700' : ''}
+                            ${status.includes('Submitted') ? 'bg-blue-100 text-blue-700' : ''}
+                            ${status.includes('Approved') ? 'bg-green-100 text-green-700' : ''}
                             ${status === 'Locked' ? 'bg-red-100 text-red-700' : ''}
                             ${status === 'Returned' ? 'bg-amber-100 text-amber-700' : ''}
                           `}>
