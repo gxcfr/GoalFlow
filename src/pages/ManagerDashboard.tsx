@@ -1,216 +1,287 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, XCircle, Search, MessageSquare, UserCircle } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Search, MessageSquare, Activity } from 'lucide-react';
+import { calculateProgressScore, getStatusColor } from '../lib/scoring';
 
 export default function ManagerDashboard() {
   const { profile } = useAuth();
-  const [reports, setReports] = useState<any[]>([]);
-  const [selectedSheet, setSelectedSheet] = useState<any | null>(null);
-  const [goals, setGoals] = useState<any[]>([]);
+  const [team, setTeam] = useState<any[]>([]);
+  const [selectedMember, setSelectedMember] = useState<any | null>(null);
+  const [memberSheet, setMemberSheet] = useState<any | null>(null);
+  const [memberGoals, setMemberGoals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [comment, setComment] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Phase 2 Check-in
+  const [demoQuarter, setDemoQuarter] = useState<string | null>(null);
 
   useEffect(() => {
-    if (profile) fetchReports();
+    if (profile) fetchTeam();
   }, [profile]);
 
-  const fetchReports = async () => {
+  const fetchTeam = async () => {
     setLoading(true);
-    const { data: teamMembers } = await supabase.from('profiles').select('*').eq('manager_id', profile?.id);
-
-    if (teamMembers && teamMembers.length > 0) {
-      const userIds = teamMembers.map(t => t.id);
-      const { data: sheets } = await supabase
-        .from('goal_sheets')
-        .select('*, profiles(full_name, department)')
-        .in('user_id', userIds)
-        .eq('cycle', 'FY2026');
-      setReports(sheets || []);
-    }
+    const { data } = await supabase.from('profiles').select('*').eq('manager_id', profile?.id);
+    if (data) setTeam(data);
     setLoading(false);
   };
 
-  const handleSelectSheet = async (sheet: any) => {
-    setSelectedSheet(sheet);
-    setComment(sheet.manager_comment || '');
-    const { data } = await supabase.from('goals').select('*').eq('sheet_id', sheet.id).order('created_at', { ascending: true });
-    setGoals(data || []);
-  };
-
-  const handleUpdateGoal = async (id: string, field: string, value: any) => {
-    try {
-      const { error } = await supabase.from('goals').update({ [field]: value }).eq('id', id);
-      if (error) throw error;
-      setGoals(goals.map(g => g.id === id ? { ...g, [field]: value } : g));
-    } catch (err: any) { alert(err.message); }
-  };
-
-  const handleAction = async (status: 'Approved' | 'Returned' | 'Locked') => {
-    if (status === 'Returned' && !comment.trim()) {
-      alert('A comment is required when returning a goal sheet.');
-      return;
+  const handleSelectMember = async (member: any) => {
+    setSelectedMember(member);
+    setMemberSheet(null);
+    setMemberGoals([]);
+    
+    const { data: sheets } = await supabase.from('goal_sheets').select('*').eq('user_id', member.id).eq('cycle', 'FY2026').order('created_at', { ascending: false }).limit(1);
+    
+    if (sheets && sheets.length > 0) {
+      setMemberSheet(sheets[0]);
+      const { data: goals } = await supabase.from('goals').select('*').eq('sheet_id', sheets[0].id).order('created_at', { ascending: true });
+      if (goals) setMemberGoals(goals);
     }
+  };
+
+  const handleUpdateSheetStatus = async (status: string) => {
     try {
-      const updates = { status, manager_comment: comment };
-      const { error } = await supabase.from('goal_sheets').update(updates).eq('id', selectedSheet.id);
+      const { error } = await supabase.from('goal_sheets').update({ status }).eq('id', memberSheet.id);
       if (error) throw error;
-      
-      setSelectedSheet({ ...selectedSheet, ...updates });
-      setReports(reports.map(r => r.id === selectedSheet.id ? { ...r, ...updates } : r));
+      setMemberSheet({ ...memberSheet, status });
+      alert(`Sheet ${status} successfully.`);
     } catch (err: any) { alert(err.message); }
   };
+
+  const getCurrentQuarter = () => {
+    if (demoQuarter) return demoQuarter;
+    const month = new Date().getMonth();
+    if (month === 6) return 'Q1';
+    if (month === 9) return 'Q2';
+    if (month === 0) return 'Q3';
+    if (month === 2 || month === 3) return 'Q4';
+    return null;
+  };
+
+  const activeQ = getCurrentQuarter();
+
+  const handleUpdateManagerComment = async (goalId: string, quarter: string, comment: string) => {
+    try {
+      const field = `manager_comment_${quarter.toLowerCase()}`;
+      const { error } = await supabase.from('goals').update({ [field]: comment }).eq('id', goalId);
+      if (error) throw error;
+      setMemberGoals(memberGoals.map(g => g.id === goalId ? { ...g, [field]: comment } : g));
+    } catch (err: any) { alert(err.message); }
+  };
+
+  const filteredTeam = team.filter(m => m.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || m.department?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   if (loading) return <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-navy-900"></div></div>;
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-6rem)] animate-fade-in-up">
-      {/* Team List Sidebar */}
-      <div className="w-full md:w-1/3 glass-panel rounded-3xl overflow-hidden flex flex-col shadow-lg">
-        <div className="p-6 border-b border-white/20 bg-white/30 backdrop-blur-md">
-          <h2 className="text-xl font-bold text-gray-900">My Team</h2>
-          <p className="text-sm text-gray-600 mt-1">FY2026 Goal Sheets</p>
+    <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-6">
+      {/* Sidebar: Team List */}
+      <div className="w-full lg:w-1/3 glass-panel rounded-3xl flex flex-col overflow-hidden">
+        <div className="p-6 border-b border-white/20 bg-white/10">
+          <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><Users className="w-5 h-5 mr-2 text-navy-600" /> My Direct Reports</h2>
+          <div className="mt-4 relative">
+            <Search className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
+            <input type="text" placeholder="Search team..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white/60 border border-white/80 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 text-sm" />
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
-          {reports.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center p-6 text-gray-500">
-              <UserCircle className="w-12 h-12 mb-3 text-gray-300" />
-              <p className="text-sm font-medium">No direct reports found</p>
-            </div>
-          ) : (
-            reports.map((sheet, index) => (
-              <button
-                key={sheet.id}
-                onClick={() => handleSelectSheet(sheet)}
-                className={`w-full text-left p-4 rounded-2xl transition-all duration-200 animate-fade-in-up ${
-                  selectedSheet?.id === sheet.id 
-                    ? 'bg-white shadow-md border-l-4 border-l-navy-900 translate-x-1' 
-                    : 'bg-white/40 hover:bg-white/60 border-l-4 border-l-transparent hover:translate-x-1'
-                }`}
-                style={{ animationDelay: `${0.1 * index}s` }}
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-bold text-gray-900">{sheet.profiles?.full_name}</p>
-                    <p className="text-xs text-gray-500 font-medium mt-0.5">{sheet.profiles?.department}</p>
-                  </div>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-sm
-                    ${sheet.status === 'Draft' ? 'bg-gray-200 text-gray-700' : ''}
-                    ${sheet.status === 'Submitted' ? 'bg-blue-100 text-blue-700' : ''}
-                    ${sheet.status === 'Approved' ? 'bg-green-100 text-green-700' : ''}
-                    ${sheet.status === 'Returned' ? 'bg-amber-100 text-amber-700' : ''}
-                    ${sheet.status === 'Locked' ? 'bg-red-100 text-red-700' : ''}
-                  `}>
-                    {sheet.status}
-                  </span>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {filteredTeam.map(member => (
+            <button key={member.id} onClick={() => handleSelectMember(member)} className={`w-full text-left p-4 rounded-2xl transition-all duration-200 border ${selectedMember?.id === member.id ? 'bg-white border-navy-200 shadow-md transform scale-[1.02]' : 'bg-white/40 border-transparent hover:bg-white/60 hover:shadow-sm'}`}>
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-navy-800 to-blue-600 text-white flex items-center justify-center text-lg font-bold shadow-sm">{member.full_name.charAt(0)}</div>
+                <div className="ml-4 flex-1">
+                  <p className="text-sm font-bold text-gray-900">{member.full_name}</p>
+                  <p className="text-xs text-gray-500 font-medium">{member.department}</p>
                 </div>
-              </button>
-            ))
-          )}
+              </div>
+            </button>
+          ))}
+          {filteredTeam.length === 0 && <p className="text-center text-sm text-gray-500 mt-8 font-medium">No team members found.</p>}
         </div>
       </div>
 
-      {/* Review Panel */}
-      <div className="w-full md:w-2/3 glass-panel rounded-3xl flex flex-col overflow-hidden shadow-lg relative">
-        {selectedSheet ? (
-          <>
-            <div className="p-6 border-b border-white/20 bg-white/40 backdrop-blur-md flex flex-col sm:flex-row justify-between items-center z-10">
-              <div className="mb-4 sm:mb-0">
-                <h2 className="text-2xl font-bold text-gray-900">{selectedSheet.profiles?.full_name}</h2>
-                <p className="text-sm font-medium text-gray-500">{goals.length} Goals • Total Weightage {goals.reduce((a,b)=>a+Number(b.weightage),0)}%</p>
+      {/* Main Content: Review Panel */}
+      <div className="w-full lg:w-2/3 flex flex-col h-full">
+        {!selectedMember ? (
+          <div className="flex-1 glass-panel rounded-3xl flex flex-col items-center justify-center text-center p-8">
+            <div className="w-20 h-20 bg-white/50 rounded-full flex items-center justify-center mb-6 shadow-inner"><Users className="w-10 h-10 text-navy-300" /></div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Select a Team Member</h3>
+            <p className="text-sm text-gray-500 max-w-sm">Choose a direct report from the list to review their goals and track quarterly progress.</p>
+          </div>
+        ) : !memberSheet ? (
+          <div className="flex-1 glass-panel rounded-3xl flex items-center justify-center">
+            <p className="text-sm text-gray-500 font-medium">This employee has not created a goal sheet yet.</p>
+          </div>
+        ) : (
+          <div className="flex-1 glass-panel rounded-3xl flex flex-col overflow-hidden relative">
+            {/* Header */}
+            <div className="p-6 bg-white/40 border-b border-white/40 shadow-sm relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{selectedMember.full_name}'s Goal Sheet</h2>
+                <div className="mt-2 flex items-center space-x-3">
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm
+                    ${memberSheet.status === 'Draft' ? 'bg-gray-200 text-gray-700' : ''}
+                    ${memberSheet.status === 'Submitted' ? 'bg-blue-100 text-blue-700' : ''}
+                    ${memberSheet.status === 'Approved' ? 'bg-green-100 text-green-700' : ''}
+                    ${memberSheet.status === 'Locked' ? 'bg-red-100 text-red-700' : ''}
+                    ${memberSheet.status === 'Returned' ? 'bg-amber-100 text-amber-700' : ''}
+                  `}>
+                    Status: {memberSheet.status}
+                  </span>
+                </div>
               </div>
               
-              <div className="flex space-x-3">
-                {selectedSheet.status === 'Submitted' && (
-                  <>
-                    <button onClick={() => handleAction('Returned')} className="group inline-flex items-center px-4 py-2 border border-amber-200 shadow-sm text-sm font-bold rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all">
-                      <XCircle className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
-                      Return
-                    </button>
-                    <button onClick={() => handleAction('Approved')} className="group inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-bold rounded-xl text-white bg-green-600 hover:bg-green-700 hover:shadow-md transition-all">
-                      <CheckCircle className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
-                      Approve
-                    </button>
-                  </>
-                )}
-                {selectedSheet.status === 'Approved' && (
-                  <button onClick={() => handleAction('Locked')} className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-bold rounded-xl text-white bg-navy-900 hover:bg-navy-800 transition-all">
-                    Lock Sheet
+              {/* Phase 1 Approval Actions */}
+              {memberSheet.status === 'Submitted' && (
+                <div className="flex gap-3 mt-4 sm:mt-0">
+                  <button onClick={() => handleUpdateSheetStatus('Returned')} className="px-4 py-2 bg-white text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 text-sm font-bold flex items-center shadow-sm transition-all">
+                    <XCircle className="w-4 h-4 mr-2" /> Return
                   </button>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide z-10 relative">
-              {/* Subtle background blob for the review area */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-blue-400/5 rounded-full blur-[60px] -z-10"></div>
-              
-              {(selectedSheet.status === 'Submitted' || selectedSheet.status === 'Returned') && (
-                <div className="bg-white/80 backdrop-blur-sm p-5 rounded-2xl border border-white shadow-sm animate-fade-in-up">
-                  <label className="block text-sm font-bold text-gray-700 flex items-center mb-3">
-                    <MessageSquare className="h-5 w-5 mr-2 text-navy-600" />
-                    Manager Feedback
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Provide constructive feedback (required if returning)..."
-                    className="block w-full border border-gray-200 rounded-xl shadow-inner focus:ring-2 focus:ring-navy-500 focus:border-transparent px-4 py-3 sm:text-sm transition-all"
-                  />
+                  <button onClick={() => handleUpdateSheetStatus('Approved')} className="px-4 py-2 bg-navy-900 text-white rounded-xl hover:bg-navy-800 text-sm font-bold flex items-center shadow-md transition-all">
+                    <CheckCircle className="w-4 h-4 mr-2" /> Approve
+                  </button>
                 </div>
               )}
+              {memberSheet.status === 'Approved' && (
+                <button onClick={() => handleUpdateSheetStatus('Locked')} className="mt-4 sm:mt-0 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 text-sm font-bold shadow-md transition-all">
+                  Lock Sheet (Finalize)
+                </button>
+              )}
+            </div>
 
-              {goals.map((goal, index) => (
-                <div key={goal.id} className="bg-white/70 backdrop-blur-md border border-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all animate-fade-in-up" style={{ animationDelay: `${0.05 * index}s` }}>
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-lg font-bold text-gray-900 tracking-tight">{index + 1}. {goal.title}</h3>
-                    <span className="text-[10px] font-bold uppercase tracking-widest bg-navy-50 text-navy-800 px-3 py-1 rounded-lg border border-navy-100">{goal.thrust_area}</span>
-                  </div>
-                  <p className="text-sm text-gray-600 leading-relaxed mb-6">{goal.description}</p>
-                  
-                  <div className="flex flex-wrap gap-4 bg-white/50 p-4 rounded-xl">
-                    <div className="flex-1">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">UOM</p>
-                      <p className="text-sm font-bold text-gray-900">{goal.uom}</p>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Target</p>
-                      {selectedSheet.status === 'Submitted' ? (
-                        <input
-                          type="text"
-                          value={goal.target_value}
-                          onChange={(e) => handleUpdateGoal(goal.id, 'target_value', e.target.value)}
-                          className="block w-full sm:text-sm border-gray-200 rounded-lg focus:ring-2 focus:ring-navy-500 px-3 py-1.5"
-                        />
-                      ) : (
-                        <p className="text-sm font-bold py-1.5">{goal.target_value}</p>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Weightage (%)</p>
-                      {selectedSheet.status === 'Submitted' ? (
-                        <input
-                          type="number"
-                          value={goal.weightage}
-                          onChange={(e) => handleUpdateGoal(goal.id, 'weightage', Number(e.target.value))}
-                          className="block w-full sm:text-sm border-gray-200 rounded-lg focus:ring-2 focus:ring-navy-500 px-3 py-1.5"
-                        />
-                      ) : (
-                        <p className="text-sm font-bold py-1.5 text-navy-700">{goal.weightage}%</p>
-                      )}
-                    </div>
-                  </div>
+            {/* Phase 2 Demo Toggle (For Managers viewing Check-ins) */}
+            {(memberSheet.status === 'Approved' || memberSheet.status === 'Locked') && (
+              <div className="px-6 py-3 bg-blue-50/50 border-b border-blue-100 flex justify-between items-center z-10">
+                <div className="flex items-center text-sm text-navy-800 font-bold">
+                  <Activity className="w-4 h-4 mr-2 text-navy-600" /> Manager Check-in View
                 </div>
-              ))}
+                <select 
+                  value={demoQuarter || ''} 
+                  onChange={e => setDemoQuarter(e.target.value || null)}
+                  className="px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-navy-500 shadow-sm"
+                >
+                  <option value="">System Date Logic</option>
+                  <option value="Q1">Force Open Q1</option>
+                  <option value="Q2">Force Open Q2</option>
+                  <option value="Q3">Force Open Q3</option>
+                  <option value="Q4">Force Open Q4</option>
+                </select>
+              </div>
+            )}
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 z-10 bg-white/20">
+              {memberGoals.map((goal, index) => {
+                const isProgressPhase = (memberSheet.status === 'Approved' || memberSheet.status === 'Locked');
+                
+                return (
+                  <div key={goal.id} className="bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white shadow-sm hover:shadow-md transition-all duration-300">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <span className="inline-flex px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold uppercase tracking-wider mb-2">{goal.thrust_area}</span>
+                        <h4 className="text-lg font-bold text-gray-900">{index + 1}. {goal.title}</h4>
+                        <p className="text-sm text-gray-600 mt-1 max-w-2xl">{goal.description}</p>
+                      </div>
+                      <div className="text-right bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                        <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400 mb-1">Weightage</p>
+                        <p className="text-xl font-black text-navy-900">{goal.weightage}%</p>
+                      </div>
+                    </div>
+
+                    {!isProgressPhase ? (
+                      <div className="mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Target / UOM</p>
+                        <p className="text-sm font-bold text-gray-900">{goal.target_value} ({goal.uom})</p>
+                        <p className="text-xs text-gray-500 mt-1">{goal.target_direction}</p>
+                      </div>
+                    ) : (
+                      <div className="mt-6 space-y-6 border-t border-gray-200 pt-6">
+                        {/* Manager Progress Tracking View */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Target</p>
+                            <p className="text-lg font-black text-navy-900">{goal.target_value} <span className="text-xs text-gray-500 font-medium">{goal.uom}</span></p>
+                          </div>
+                          
+                          {activeQ && (
+                            <>
+                              {(() => {
+                                const actualField = `actual_${activeQ.toLowerCase()}` as keyof typeof goal;
+                                const statusField = `status_${activeQ.toLowerCase()}` as keyof typeof goal;
+                                const actual = goal[actualField] || '--';
+                                const status = goal[statusField] || 'Not Started';
+                                const score = calculateProgressScore(goal.target_value, actual === '--' ? null : actual, goal.uom, goal.target_direction);
+                                
+                                return (
+                                  <>
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                      <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-1">{activeQ} Actual</p>
+                                      <p className="text-lg font-black text-blue-900">{actual}</p>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{activeQ} Status</p>
+                                      <div className="flex items-center mt-1">
+                                        <div className={`w-3 h-3 rounded-full mr-2 ${getStatusColor(status)}`}></div>
+                                        <p className="text-sm font-bold text-gray-900">{status}</p>
+                                      </div>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{activeQ} Score</p>
+                                      <div className="flex items-center">
+                                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden mr-3">
+                                          <div className="h-full bg-navy-900 rounded-full" style={{ width: `${Math.min(score || 0, 100)}%` }}></div>
+                                        </div>
+                                        <p className="text-sm font-black text-navy-900">{score !== null ? Math.round(score) + '%' : '--'}</p>
+                                      </div>
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                            </>
+                          )}
+                        </div>
+
+                        {/* Check-in Comment */}
+                        {activeQ && (
+                          <div className="bg-navy-50/50 p-5 rounded-xl border border-navy-100">
+                            <label className="flex items-center text-sm font-bold text-navy-900 mb-3">
+                              <MessageSquare className="w-4 h-4 mr-2" /> Manager Check-in Comment ({activeQ})
+                            </label>
+                            <textarea 
+                              rows={3} 
+                              placeholder="Document discussion, feedback, or blockers here..."
+                              defaultValue={goal[`manager_comment_${activeQ.toLowerCase()}` as keyof typeof goal] || ''}
+                              onBlur={(e) => handleUpdateManagerComment(goal.id, activeQ, e.target.value)}
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 sm:text-sm shadow-sm"
+                            />
+                            <p className="text-xs text-gray-500 mt-2 font-medium">Auto-saves when you click away.</p>
+                          </div>
+                        )}
+                        
+                        {/* History */}
+                        <div className="mt-4">
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Historical Comments</p>
+                          <div className="space-y-3">
+                            {['Q1', 'Q2', 'Q3', 'Q4'].filter(q => q !== activeQ).map(q => {
+                              const c = goal[`manager_comment_${q.toLowerCase()}` as keyof typeof goal];
+                              if (!c) return null;
+                              return (
+                                <div key={q} className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm text-gray-700">
+                                  <span className="font-bold text-gray-900 mr-2">{q}:</span> {c}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400 flex-col animate-fade-in">
-            <div className="w-24 h-24 bg-white/30 rounded-full flex items-center justify-center mb-6 shadow-sm">
-              <Search className="h-10 w-10 text-gray-400" />
-            </div>
-            <p className="text-lg font-medium text-gray-500">Select a team member to review</p>
           </div>
         )}
       </div>

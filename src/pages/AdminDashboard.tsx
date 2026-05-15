@@ -1,187 +1,209 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
-import { Send, Users, Check } from 'lucide-react';
+import { Users, Target, Activity, FileDown, CheckCircle, Clock } from 'lucide-react';
 
 export default function AdminDashboard() {
-  const { profile } = useAuth();
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
-  
-  const [formData, setFormData] = useState({
-    thrust_area: 'Department KPI',
-    title: '',
-    description: '',
-    uom: 'Numeric',
-    target_value: '',
-    weightage: 10
+  const [stats, setStats] = useState({
+    totalEmployees: 0,
+    sheetsSubmitted: 0,
+    sheetsApproved: 0,
+    sheetsLocked: 0
   });
   
-  const [loading, setLoading] = useState(false);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [sheets, setSheets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchEmployees();
+    fetchData();
   }, []);
 
-  const fetchEmployees = async () => {
-    const { data } = await supabase.from('profiles').select('*').eq('role', 'Employee').order('full_name', { ascending: true });
-    setEmployees(data || []);
-  };
-
-  const handleToggleEmployee = (id: string) => {
-    const newSet = new Set(selectedEmployees);
-    if (newSet.has(id)) newSet.delete(id);
-    else newSet.add(id);
-    setSelectedEmployees(newSet);
-  };
-
-  const handleSelectAll = () => {
-    if (selectedEmployees.size === employees.length) setSelectedEmployees(new Set());
-    else setSelectedEmployees(new Set(employees.map(e => e.id)));
-  };
-
-  const handlePushGoal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedEmployees.size === 0) {
-      alert("Please select at least one employee.");
-      return;
+  const fetchData = async () => {
+    setLoading(true);
+    
+    // Fetch Employees
+    const { data: profiles } = await supabase.from('profiles').select('*').eq('role', 'Employee');
+    const { data: allSheets } = await supabase.from('goal_sheets').select('*').eq('cycle', 'FY2026');
+    
+    if (profiles) setEmployees(profiles);
+    if (allSheets) {
+      setSheets(allSheets);
+      setStats({
+        totalEmployees: profiles?.length || 0,
+        sheetsSubmitted: allSheets.filter(s => s.status === 'Submitted').length,
+        sheetsApproved: allSheets.filter(s => s.status === 'Approved').length,
+        sheetsLocked: allSheets.filter(s => s.status === 'Locked').length
+      });
     }
     
-    setLoading(true);
-    try {
-      const employeeIds = Array.from(selectedEmployees);
-      const { data: sheets } = await supabase.from('goal_sheets').select('id, user_id').eq('cycle', 'FY2026').in('user_id', employeeIds);
-      const sheetMap = new Map(sheets?.map(s => [s.user_id, s.id]));
-      
-      for (const empId of employeeIds) {
-        let sheetId = sheetMap.get(empId);
-        if (!sheetId) {
-          const { data: newSheet, error: sheetError } = await supabase.from('goal_sheets').insert({ user_id: empId, cycle: 'FY2026', status: 'Draft' }).select().single();
-          if (sheetError) continue;
-          sheetId = newSheet.id;
-        }
-
-        const { data: goal, error: goalError } = await supabase.from('goals').insert({ sheet_id: sheetId, ...formData }).select().single();
-        if (goalError) continue;
-
-        await supabase.from('shared_goal_links').insert({ employee_goal_id: goal.id, assigned_by: profile?.id, assigned_to: empId });
-      }
-      
-      alert("Shared goal pushed successfully!");
-      setFormData({ thrust_area: 'Department KPI', title: '', description: '', uom: 'Numeric', target_value: '', weightage: 10 });
-      setSelectedEmployees(new Set());
-    } catch (err: any) { alert(err.message); } finally { setLoading(false); }
+    setLoading(false);
   };
 
-  return (
-    <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-6rem)] animate-fade-in-up">
-      {/* Create Shared Goal Form */}
-      <div className="w-full md:w-3/5 glass-panel rounded-3xl p-8 overflow-y-auto scrollbar-hide shadow-lg relative">
-        <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-white/40 to-transparent"></div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-8 flex items-center relative z-10 tracking-tight">
-          <div className="bg-navy-900 p-2.5 rounded-xl mr-3 shadow-md">
-            <Send className="h-5 w-5 text-white" />
-          </div>
-          Push Organization KPI
-        </h2>
-        
-        <form onSubmit={handlePushGoal} className="space-y-6 relative z-10">
-          <div className="bg-white/60 backdrop-blur-sm p-6 rounded-2xl border border-white shadow-sm space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Thrust Area</label>
-                <input type="text" required value={formData.thrust_area} onChange={e => setFormData({...formData, thrust_area: e.target.value})} className="w-full px-4 py-2.5 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 focus:bg-white transition-colors sm:text-sm" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Goal Title</label>
-                <input type="text" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-4 py-2.5 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 focus:bg-white transition-colors sm:text-sm" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Description</label>
-                <textarea rows={3} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-2.5 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 focus:bg-white transition-colors sm:text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">UOM</label>
-                <select value={formData.uom} onChange={e => setFormData({...formData, uom: e.target.value})} className="w-full px-4 py-2.5 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 focus:bg-white transition-colors sm:text-sm">
-                  <option>Numeric</option>
-                  <option>%</option>
-                  <option>Timeline</option>
-                  <option>Zero-based</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Target Value</label>
-                <input type="text" required value={formData.target_value} onChange={e => setFormData({...formData, target_value: e.target.value})} className="w-full px-4 py-2.5 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 focus:bg-white transition-colors sm:text-sm" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Default Weightage</label>
-                <input type="number" required min="10" value={formData.weightage} onChange={e => setFormData({...formData, weightage: Number(e.target.value)})} className="w-1/2 px-4 py-2.5 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 focus:bg-white transition-colors sm:text-sm" />
-                <p className="mt-1 text-xs text-gray-500">Employees can adjust this on their end.</p>
-              </div>
-            </div>
-          </div>
-          
-          <button
-            type="submit"
-            disabled={loading || selectedEmployees.size === 0}
-            className="group w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-2xl shadow-lg text-sm font-bold text-white bg-navy-900 hover:bg-navy-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-900 disabled:opacity-50 transition-all hover:-translate-y-0.5"
-          >
-            {loading ? 'Pushing to Database...' : `Push Goal to ${selectedEmployees.size} Selected Employees`}
-          </button>
-        </form>
-      </div>
+  const getCompletionStatus = (empId: string) => {
+    const sheet = sheets.find(s => s.user_id === empId);
+    if (!sheet) return 'Not Started';
+    return sheet.status;
+  };
 
-      {/* Select Employees Panel */}
-      <div className="w-full md:w-2/5 glass-panel rounded-3xl flex flex-col overflow-hidden shadow-lg">
-        <div className="p-6 border-b border-white/20 bg-white/30 backdrop-blur-md">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight">
-              <Users className="mr-2 h-5 w-5 text-navy-600" />
-              Target Audience
-            </h2>
-            <span className="bg-white/80 text-navy-900 border border-navy-100 py-1.5 px-3 rounded-full text-xs font-bold shadow-sm">
-              {selectedEmployees.size} / {employees.length}
-            </span>
-          </div>
-          <button onClick={handleSelectAll} className="text-xs font-bold text-navy-600 hover:text-navy-800 hover:underline">
-            {selectedEmployees.size === employees.length ? 'Deselect All' : 'Select All'}
-          </button>
+  const handleExportCSV = async () => {
+    // Phase 2: Export CSV of Planned vs Actual
+    const { data: goals, error } = await supabase
+      .from('goals')
+      .select(`
+        *,
+        goal_sheets (
+          user_id,
+          profiles ( full_name, department )
+        )
+      `);
+      
+    if (error || !goals) {
+      alert("Failed to export data.");
+      return;
+    }
+
+    const headers = ['Employee', 'Department', 'Thrust Area', 'Goal', 'Target', 'UOM', 'Q1 Actual', 'Q1 Status', 'Q2 Actual', 'Q2 Status'];
+    const rows = goals.map((g: any) => [
+      `"${g.goal_sheets?.profiles?.full_name || 'Unknown'}"`,
+      `"${g.goal_sheets?.profiles?.department || 'Unknown'}"`,
+      `"${g.thrust_area}"`,
+      `"${g.title}"`,
+      `"${g.target_value}"`,
+      `"${g.uom}"`,
+      `"${g.actual_q1 || ''}"`,
+      `"${g.status_q1 || ''}"`,
+      `"${g.actual_q2 || ''}"`,
+      `"${g.status_q2 || ''}"`
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `GoalFlow_Achievement_Report.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (loading) return <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-navy-900"></div></div>;
+
+  return (
+    <div className="space-y-8 animate-fade-in-up">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Admin Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500 font-medium">Enterprise oversight and governance.</p>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide">
-          {employees.map((emp, index) => (
-            <label 
-              key={emp.id} 
-              className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all duration-200 animate-fade-in-up
-                ${selectedEmployees.has(emp.id) ? 'bg-navy-50 border-navy-300 shadow-sm' : 'bg-white/50 border-transparent hover:bg-white/80'}
-              `}
-              style={{ animationDelay: `${0.05 * index}s` }}
-            >
-              <div className={`w-5 h-5 rounded border flex items-center justify-center mr-4 transition-colors
-                ${selectedEmployees.has(emp.id) ? 'bg-navy-600 border-navy-600' : 'border-gray-300 bg-white'}
-              `}>
-                {selectedEmployees.has(emp.id) && <Check className="w-3.5 h-3.5 text-white" />}
-              </div>
-              
-              <div className="flex-1">
-                <span className="block text-sm font-bold text-gray-900">{emp.full_name}</span>
-                <span className="block text-xs font-medium text-gray-500 mt-0.5">{emp.department}</span>
-              </div>
-              
-              {/* Invisible checkbox for accessibility */}
-              <input
-                type="checkbox"
-                className="sr-only"
-                checked={selectedEmployees.has(emp.id)}
-                onChange={() => handleToggleEmployee(emp.id)}
-              />
-            </label>
-          ))}
-          {employees.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 py-12">
-              <Users className="w-12 h-12 mb-2 text-gray-300" />
-              <p className="text-sm font-medium">No employees found.</p>
+        <button 
+          onClick={handleExportCSV}
+          className="mt-4 sm:mt-0 px-5 py-2.5 bg-white text-navy-900 border border-navy-200 rounded-xl hover:bg-navy-50 text-sm font-bold flex items-center shadow-sm transition-all"
+        >
+          <FileDown className="w-4 h-4 mr-2" /> Export Achievement Report
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -z-10 group-hover:bg-blue-500/20 transition-all"></div>
+          <div className="flex items-center">
+            <div className="p-3 bg-white/60 rounded-xl"><Users className="h-6 w-6 text-navy-600" /></div>
+            <div className="ml-4">
+              <p className="text-sm font-bold text-gray-500">Total Employees</p>
+              <p className="text-3xl font-black text-gray-900">{stats.totalEmployees}</p>
             </div>
+          </div>
+        </div>
+        
+        <div className="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl -z-10 group-hover:bg-amber-500/20 transition-all"></div>
+          <div className="flex items-center">
+            <div className="p-3 bg-white/60 rounded-xl"><Clock className="h-6 w-6 text-amber-600" /></div>
+            <div className="ml-4">
+              <p className="text-sm font-bold text-gray-500">Pending Approval</p>
+              <p className="text-3xl font-black text-gray-900">{stats.sheetsSubmitted}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-full blur-2xl -z-10 group-hover:bg-green-500/20 transition-all"></div>
+          <div className="flex items-center">
+            <div className="p-3 bg-white/60 rounded-xl"><CheckCircle className="h-6 w-6 text-green-600" /></div>
+            <div className="ml-4">
+              <p className="text-sm font-bold text-gray-500">Approved</p>
+              <p className="text-3xl font-black text-gray-900">{stats.sheetsApproved}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl -z-10 group-hover:bg-red-500/20 transition-all"></div>
+          <div className="flex items-center">
+            <div className="p-3 bg-white/60 rounded-xl"><Target className="h-6 w-6 text-red-600" /></div>
+            <div className="ml-4">
+              <p className="text-sm font-bold text-gray-500">Locked & Final</p>
+              <p className="text-3xl font-black text-gray-900">{stats.sheetsLocked}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Completion Dashboard */}
+      <div className="glass-panel rounded-3xl overflow-hidden shadow-sm border border-white/40">
+        <div className="p-6 border-b border-gray-100 bg-white/40">
+          <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><Activity className="w-5 h-5 mr-2 text-navy-600" /> Quarterly Completion Dashboard</h2>
+          <p className="text-sm text-gray-500 font-medium mt-1">Monitor which employees have completed their goal sheets.</p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50/50">
+              <tr>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name</th>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Department</th>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Goal Sheet Status</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white/60 divide-y divide-gray-100">
+              {employees.map((employee) => {
+                const status = getCompletionStatus(employee.id);
+                return (
+                  <tr key={employee.id} className="hover:bg-white/80 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-navy-800 to-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                          {employee.full_name.charAt(0)}
+                        </div>
+                        <div className="ml-3 font-bold text-gray-900 text-sm">{employee.full_name}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
+                      {employee.department || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm
+                        ${status === 'Not Started' ? 'bg-gray-100 text-gray-600' : ''}
+                        ${status === 'Draft' ? 'bg-gray-100 text-gray-700' : ''}
+                        ${status === 'Submitted' ? 'bg-blue-100 text-blue-700' : ''}
+                        ${status === 'Approved' ? 'bg-green-100 text-green-700' : ''}
+                        ${status === 'Locked' ? 'bg-red-100 text-red-700' : ''}
+                        ${status === 'Returned' ? 'bg-amber-100 text-amber-700' : ''}
+                      `}>
+                        {status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {employees.length === 0 && (
+            <div className="p-8 text-center text-gray-500 font-medium text-sm">No employees found in the system.</div>
           )}
         </div>
       </div>
