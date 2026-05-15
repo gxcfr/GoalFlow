@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy-900: #0A192F;
+  --color-navy-800: #112240;
+  --color-navy-700: #233554;
+  --color-navy-600: #2a3f61;
+  --color-gray-50: #F9FAFB;
+  --color-gray-100: #F3F4F6;
+  --color-gray-200: #E5E7EB;
+  --color-gray-300: #D1D5DB;
+  --color-gray-400: #9CA3AF;
+  --color-gray-500: #6B7280;
+  --color-gray-600: #4B5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1F2937;
+  --color-gray-900: #111827;
+  
+  /* Status Colors */
+  --color-status-draft: #9CA3AF;
+  --color-status-submitted: #3B82F6;
+  --color-status-approved: #10B981;
+  --color-status-returned: #F59E0B;
+  --color-status-locked: #EF4444;
+
+  --animate-fade-in-up: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-fade-in: fade-in 0.4s ease-out forwards;
+  
+  @keyframes fade-in-up {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+@layer base {
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --background: var(--color-gray-50);
+    --foreground: var(--color-gray-900);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  .bg-mesh {
+    background-color: #f3f4f6;
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(215, 20%, 95%, 1) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(210, 30%, 90%, 1) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(220, 20%, 95%, 1) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(215, 10%, 90%, 1) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  .bg-mesh-dark {
+    background-color: #0A192F;
+    background-image: 
+      radial-gradient(at 20% 0%, hsla(215, 60%, 18%, 1) 0px, transparent 50%),
+      radial-gradient(at 80% 100%, hsla(210, 70%, 12%, 1) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  .glass-panel {
+    background-color: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+  }
+
+  .glass-panel-dark {
+    background-color: rgba(10, 25, 47, 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+  }
+}
