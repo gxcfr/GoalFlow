@@ -392,6 +392,29 @@ export default function EmployeeDashboard() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Manager Feedback */}
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    {activeQ && goal[`manager_comment_${activeQ.toLowerCase()}` as keyof typeof goal] && (
+                      <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-3">
+                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Manager Check-in Comment ({activeQ})</p>
+                        <p className="text-sm text-gray-800">{goal[`manager_comment_${activeQ.toLowerCase()}` as keyof typeof goal]}</p>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-2">
+                      {['Q1', 'Q2', 'Q3', 'Q4'].filter(q => q !== activeQ).map(q => {
+                        const c = goal[`manager_comment_${q.toLowerCase()}` as keyof typeof goal];
+                        if (!c) return null;
+                        return (
+                          <div key={q} className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm text-gray-700">
+                            <span className="font-bold text-gray-900 mr-2">{q} Manager Feedback:</span> {c}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                 </div>
               </div>
             );

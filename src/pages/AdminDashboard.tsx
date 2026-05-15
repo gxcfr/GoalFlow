@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Users, Target, Activity, FileDown, CheckCircle, Clock } from 'lucide-react';
+import { Users, Target, Activity, FileDown, CheckCircle, Clock, Unlock } from 'lucide-react';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -43,6 +43,26 @@ export default function AdminDashboard() {
     const sheet = sheets.find(s => s.user_id === empId);
     if (!sheet) return 'Not Started';
     return sheet.status;
+  };
+
+  const handleUnlockSheet = async (empId: string) => {
+    const sheet = sheets.find(s => s.user_id === empId);
+    if (!sheet) return;
+    
+    try {
+      const { error } = await supabase.from('goal_sheets').update({ status: 'Approved' }).eq('id', sheet.id);
+      if (error) throw error;
+      
+      setSheets(sheets.map(s => s.id === sheet.id ? { ...s, status: 'Approved' } : s));
+      setStats({
+        ...stats,
+        sheetsLocked: stats.sheetsLocked - 1,
+        sheetsApproved: stats.sheetsApproved + 1
+      });
+      alert('Sheet successfully unlocked and reverted to Approved status.');
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   const handleExportCSV = async () => {
@@ -167,6 +187,7 @@ export default function AdminDashboard() {
                 <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Department</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Goal Sheet Status</th>
+                <th scope="col" className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white/60 divide-y divide-gray-100">
@@ -196,6 +217,16 @@ export default function AdminDashboard() {
                       `}>
                         {status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      {status === 'Locked' && (
+                        <button 
+                          onClick={() => handleUnlockSheet(employee.id)}
+                          className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-navy-900 text-xs font-bold inline-flex items-center shadow-sm transition-colors"
+                        >
+                          <Unlock className="w-3.5 h-3.5 mr-1.5" /> Unlock
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
