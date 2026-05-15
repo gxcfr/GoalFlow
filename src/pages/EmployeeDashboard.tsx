@@ -32,7 +32,7 @@ export default function EmployeeDashboard() {
     if (sheets && sheets.length > 0) {
       setSheet(sheets[0]);
       await fetchGoals(sheets[0].id);
-      if (sheets[0].status === 'Approved' || sheets[0].status === 'Locked') {
+      if (!['Draft', 'Submitted', 'Returned'].includes(sheets[0].status)) {
         setActiveTab('progress');
       }
     } else {
@@ -116,6 +116,19 @@ export default function EmployeeDashboard() {
     } catch (err: any) { alert(err.message); }
   };
 
+  const isCheckinSubmitted = sheet?.status === `${activeQ} Submitted`;
+  const isCheckinApproved = sheet?.status === `${activeQ} Approved`;
+  const isLocked = sheet?.status === 'Locked';
+  const canEditCheckin = !!activeQ && !isCheckinSubmitted && !isCheckinApproved && !isLocked;
+
+  const handleSubmitCheckin = async (quarter: string) => {
+    try {
+      const { error } = await supabase.from('goal_sheets').update({ status: `${quarter} Submitted` }).eq('id', sheet.id);
+      if (error) throw error;
+      setSheet({ ...sheet, status: `${quarter} Submitted` });
+    } catch (err: any) { alert(err.message); }
+  };
+
   if (loading) return <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-navy-900"></div></div>;
 
   return (
@@ -149,7 +162,7 @@ export default function EmployeeDashboard() {
           </button>
           <button 
             onClick={() => setActiveTab('progress')} 
-            disabled={sheet?.status !== 'Approved' && sheet?.status !== 'Locked'}
+            disabled={['Draft', 'Submitted', 'Returned'].includes(sheet?.status)}
             className={`px-5 py-2.5 rounded-lg text-sm font-bold flex items-center transition-all ${activeTab === 'progress' ? 'bg-white text-navy-900 shadow-md' : 'text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed'}`}>
             <Activity className="w-4 h-4 mr-2" /> Progress
           </button>
@@ -351,7 +364,7 @@ export default function EmployeeDashboard() {
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{activeQ} Actual</p>
                       <input 
                         type={goal.uom === 'Timeline' ? 'date' : 'text'}
-                        disabled={!activeQ}
+                        disabled={!canEditCheckin}
                         value={currentActual}
                         placeholder="Enter actual..."
                         onChange={e => handleUpdateActual(goal.id, activeQ!, e.target.value, currentStatus)}
@@ -364,7 +377,7 @@ export default function EmployeeDashboard() {
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{activeQ} Status</p>
                       <div className="relative">
                         <select 
-                          disabled={!activeQ}
+                          disabled={!canEditCheckin}
                           value={currentStatus}
                           onChange={e => handleUpdateActual(goal.id, activeQ!, currentActual, e.target.value)}
                           className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-navy-500 sm:text-sm font-bold shadow-inner disabled:bg-gray-100 appearance-none pl-8"
@@ -419,6 +432,14 @@ export default function EmployeeDashboard() {
               </div>
             );
           })}
+
+          {activeQ && canEditCheckin && (
+            <div className="mt-8 flex justify-end border-t border-gray-200/50 pt-6">
+              <button onClick={() => handleSubmitCheckin(activeQ)} className="px-6 py-3 bg-navy-900 text-white rounded-xl shadow-lg hover:bg-navy-800 font-bold transition-all text-sm">
+                Submit {activeQ} Check-in for Manager Review
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

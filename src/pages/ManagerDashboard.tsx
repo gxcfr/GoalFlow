@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Users, CheckCircle, XCircle, Search, MessageSquare, Activity } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Search, MessageSquare, Activity, Edit2, Save } from 'lucide-react';
 import { calculateProgressScore, getStatusColor } from '../lib/scoring';
 
 export default function ManagerDashboard() {
@@ -15,6 +15,10 @@ export default function ManagerDashboard() {
   
   // Phase 2 Check-in
   const [demoQuarter, setDemoQuarter] = useState<string | null>(null);
+
+  // Phase 3 Inline Editing
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
 
   useEffect(() => {
     if (profile) fetchTeam();
@@ -71,6 +75,20 @@ export default function ManagerDashboard() {
     } catch (err: any) { alert(err.message); }
   };
 
+  const handleEditGoalClick = (goal: any) => {
+    setEditingGoalId(goal.id);
+    setEditForm({ title: goal.title, description: goal.description, target_value: goal.target_value, weightage: goal.weightage });
+  };
+
+  const handleSaveGoalEdit = async (goalId: string) => {
+    try {
+      const { error } = await supabase.from('goals').update(editForm).eq('id', goalId);
+      if (error) throw error;
+      setMemberGoals(memberGoals.map(g => g.id === goalId ? { ...g, ...editForm } : g));
+      setEditingGoalId(null);
+    } catch (err: any) { alert(err.message); }
+  };
+
   const filteredTeam = team.filter(m => m.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || m.department?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   if (loading) return <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-navy-900"></div></div>;
@@ -123,8 +141,8 @@ export default function ManagerDashboard() {
                 <div className="mt-2 flex items-center space-x-3">
                   <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm
                     ${memberSheet.status === 'Draft' ? 'bg-gray-200 text-gray-700' : ''}
-                    ${memberSheet.status === 'Submitted' ? 'bg-blue-100 text-blue-700' : ''}
-                    ${memberSheet.status === 'Approved' ? 'bg-green-100 text-green-700' : ''}
+                    ${memberSheet.status.includes('Submitted') ? 'bg-blue-100 text-blue-700' : ''}
+                    ${memberSheet.status.includes('Approved') ? 'bg-green-100 text-green-700' : ''}
                     ${memberSheet.status === 'Locked' ? 'bg-red-100 text-red-700' : ''}
                     ${memberSheet.status === 'Returned' ? 'bg-amber-100 text-amber-700' : ''}
                   `}>
@@ -137,10 +155,10 @@ export default function ManagerDashboard() {
               {memberSheet.status === 'Submitted' && (
                 <div className="flex gap-3 mt-4 sm:mt-0">
                   <button onClick={() => handleUpdateSheetStatus('Returned')} className="px-4 py-2 bg-white text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 text-sm font-bold flex items-center shadow-sm transition-all">
-                    <XCircle className="w-4 h-4 mr-2" /> Return
+                    <XCircle className="w-4 h-4 mr-2" /> Return Goals
                   </button>
                   <button onClick={() => handleUpdateSheetStatus('Approved')} className="px-4 py-2 bg-navy-900 text-white rounded-xl hover:bg-navy-800 text-sm font-bold flex items-center shadow-md transition-all">
-                    <CheckCircle className="w-4 h-4 mr-2" /> Approve
+                    <CheckCircle className="w-4 h-4 mr-2" /> Approve Goals
                   </button>
                 </div>
               )}
@@ -149,10 +167,22 @@ export default function ManagerDashboard() {
                   Lock Sheet (Finalize)
                 </button>
               )}
+
+              {/* Quarterly Check-in Approval Actions */}
+              {activeQ && memberSheet.status === `${activeQ} Submitted` && (
+                <div className="flex gap-3 mt-4 sm:mt-0">
+                  <button onClick={() => handleUpdateSheetStatus('Approved')} className="px-4 py-2 bg-white text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 text-sm font-bold flex items-center shadow-sm transition-all">
+                    <XCircle className="w-4 h-4 mr-2" /> Return Check-in
+                  </button>
+                  <button onClick={() => handleUpdateSheetStatus(`${activeQ} Approved`)} className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 text-sm font-bold flex items-center shadow-md transition-all">
+                    <CheckCircle className="w-4 h-4 mr-2" /> Approve {activeQ}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Phase 2 Demo Toggle (For Managers viewing Check-ins) */}
-            {(memberSheet.status === 'Approved' || memberSheet.status === 'Locked') && (
+            {!['Draft', 'Submitted', 'Returned'].includes(memberSheet.status) && (
               <div className="px-6 py-3 bg-blue-50/50 border-b border-blue-100 flex justify-between items-center z-10">
                 <div className="flex items-center text-sm text-navy-800 font-bold">
                   <Activity className="w-4 h-4 mr-2 text-navy-600" /> Manager Check-in View
@@ -174,26 +204,51 @@ export default function ManagerDashboard() {
             {/* Content Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 z-10 bg-white/20">
               {memberGoals.map((goal, index) => {
-                const isProgressPhase = (memberSheet.status === 'Approved' || memberSheet.status === 'Locked');
+                const isProgressPhase = !['Draft', 'Submitted', 'Returned'].includes(memberSheet.status);
                 
                 return (
                   <div key={goal.id} className="bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white shadow-sm hover:shadow-md transition-all duration-300">
                     <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <span className="inline-flex px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold uppercase tracking-wider mb-2">{goal.thrust_area}</span>
-                        <h4 className="text-lg font-bold text-gray-900">{index + 1}. {goal.title}</h4>
-                        <p className="text-sm text-gray-600 mt-1 max-w-2xl">{goal.description}</p>
-                      </div>
-                      <div className="text-right bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                      {editingGoalId === goal.id ? (
+                        <div className="flex-1 mr-4 space-y-3">
+                          <input type="text" value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg font-bold text-sm focus:ring-2 focus:ring-navy-500" />
+                          <textarea rows={2} value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-navy-500" />
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="inline-flex px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold uppercase tracking-wider mb-2">{goal.thrust_area}</span>
+                          <h4 className="text-lg font-bold text-gray-900">{index + 1}. {goal.title}</h4>
+                          <p className="text-sm text-gray-600 mt-1 max-w-2xl">{goal.description}</p>
+                        </div>
+                      )}
+                      <div className="text-right bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex flex-col items-end">
                         <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400 mb-1">Weightage</p>
-                        <p className="text-xl font-black text-navy-900">{goal.weightage}%</p>
+                        {editingGoalId === goal.id ? (
+                          <input type="number" value={editForm.weightage} onChange={e => setEditForm({...editForm, weightage: Number(e.target.value)})} className="w-16 text-xl font-black text-navy-900 border-b border-gray-300 focus:outline-none text-right" />
+                        ) : (
+                          <p className="text-xl font-black text-navy-900">{goal.weightage}%</p>
+                        )}
+                        
+                        {memberSheet.status === 'Submitted' && editingGoalId !== goal.id && (
+                          <button onClick={() => handleEditGoalClick(goal)} className="mt-2 text-xs text-navy-600 font-bold flex items-center hover:text-navy-800 transition-colors"><Edit2 className="w-3 h-3 mr-1" /> Edit</button>
+                        )}
+                        {editingGoalId === goal.id && (
+                          <div className="flex gap-2 mt-2">
+                            <button onClick={() => setEditingGoalId(null)} className="text-[10px] uppercase tracking-wider text-gray-500 font-bold hover:text-gray-700">Cancel</button>
+                            <button onClick={() => handleSaveGoalEdit(goal.id)} className="text-[10px] uppercase tracking-wider text-green-600 font-bold flex items-center hover:text-green-800"><Save className="w-3 h-3 mr-1" /> Save</button>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {!isProgressPhase ? (
                       <div className="mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Target / UOM</p>
-                        <p className="text-sm font-bold text-gray-900">{goal.target_value} ({goal.uom})</p>
+                        {editingGoalId === goal.id ? (
+                          <input type="text" value={editForm.target_value} onChange={e => setEditForm({...editForm, target_value: e.target.value})} className="w-48 px-2 py-1 text-sm font-bold border border-gray-300 rounded focus:ring-2 focus:ring-navy-500" />
+                        ) : (
+                          <p className="text-sm font-bold text-gray-900">{goal.target_value} ({goal.uom})</p>
+                        )}
                         <p className="text-xs text-gray-500 mt-1">{goal.target_direction}</p>
                       </div>
                     ) : (
