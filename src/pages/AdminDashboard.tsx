@@ -36,7 +36,7 @@ export default function AdminDashboard() {
     const { data: employeeData } = await supabase.from('profiles').select('*').eq('role', 'Employee');
     const { data: managerData } = await supabase.from('profiles').select('*').eq('role', 'Manager_L1');
     const { data: allSheets } = await supabase.from('goal_sheets').select('*').eq('cycle', 'FY2026');
-    const { data: logsData } = await supabase.from('audit_logs').select('*, goals ( title )').order('changed_at', { ascending: false }).limit(50);
+    const { data: logsData } = await supabase.from('audit_logs').select('*, goals ( title ), profiles!changed_by ( full_name )').order('changed_at', { ascending: false }).limit(100);
     const { data: goalsData } = await supabase.from('goals').select('*, goal_sheets ( user_id, profiles ( full_name, department, manager_id ) )');
     
     if (employeeData) setEmployees(employeeData);
@@ -344,74 +344,120 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="glass-panel rounded-3xl overflow-hidden shadow-sm border border-white/40">
-            <div className="p-6 border-b border-gray-100 bg-white/40">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><Activity className="w-5 h-5 mr-2 text-navy-600" /> Quarterly Completion Dashboard</h2>
-              <p className="text-sm text-gray-500 font-medium mt-1">Monitor which employees have completed their goal sheets.</p>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100">
-                <thead className="bg-gray-50/50">
-                  <tr>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Department</th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Goal Sheet Status</th>
-                    <th scope="col" className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white/60 divide-y divide-gray-100">
-                  {[...employees, ...managers].map((employee) => {
-                    const status = getCompletionStatus(employee.id);
-                    return (
-                      <tr key={employee.id} className="hover:bg-white/80 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-navy-800 to-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
-                              {employee.full_name.charAt(0)}
+          <div className="space-y-6">
+            {/* Employee Section */}
+            <div className="glass-panel rounded-3xl overflow-hidden shadow-sm border border-white/40">
+              <div className="p-6 border-b border-gray-100 bg-white/40">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><Activity className="w-5 h-5 mr-2 text-navy-600" /> Employee Goal Tracking</h2>
+                <p className="text-sm text-gray-500 font-medium mt-1">Monitor goal sheet submission and approval for all staff.</p>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-gray-50/50">
+                    <tr>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Department</th>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                      <th scope="col" className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white/60 divide-y divide-gray-100">
+                    {employees.map((employee) => {
+                      const status = getCompletionStatus(employee.id);
+                      return (
+                        <tr key={employee.id} className="hover:bg-white/80 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-navy-800 to-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                                {employee.full_name.charAt(0)}
+                              </div>
+                              <div className="ml-3 font-bold text-gray-900 text-sm">{employee.full_name}</div>
                             </div>
-                            <div className="ml-3 font-bold text-gray-900 text-sm">{employee.full_name}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
-                          <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold tracking-wider ${employee.role === 'Manager_L1' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
-                            {employee.role.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
-                          {employee.department || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm
-                            ${status === 'Not Started' ? 'bg-gray-100 text-gray-600' : ''}
-                            ${status === 'Draft' ? 'bg-gray-100 text-gray-700' : ''}
-                            ${status.includes('Submitted') ? 'bg-blue-100 text-blue-700' : ''}
-                            ${status.includes('Approved') ? 'bg-green-100 text-green-700' : ''}
-                            ${status === 'Locked' ? 'bg-red-100 text-red-700' : ''}
-                            ${status === 'Returned' ? 'bg-amber-100 text-amber-700' : ''}
-                          `}>
-                            {status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <button onClick={() => { setSelectedEmpForKudos(employee); setIsKudosModalOpen(true); }} className="px-3 py-1.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg text-xs font-bold inline-flex items-center shadow-sm transition-colors mr-2">
-                            <Star className="w-3.5 h-3.5 mr-1.5 fill-current" /> Kudos
-                          </button>
-                          {status === 'Locked' && (
-                            <button 
-                              onClick={() => handleUnlockSheet(employee.id)}
-                              className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-navy-900 text-xs font-bold inline-flex items-center shadow-sm transition-colors"
-                            >
-                              <Unlock className="w-3.5 h-3.5 mr-1.5" /> Unlock
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
+                            {employee.department || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm
+                              ${status === 'Not Started' ? 'bg-gray-100 text-gray-600' : ''}
+                              ${status === 'Draft' ? 'bg-gray-100 text-gray-700' : ''}
+                              ${status.includes('Submitted') ? 'bg-blue-100 text-blue-700' : ''}
+                              ${status.includes('Approved') ? 'bg-green-100 text-green-700' : ''}
+                              ${status === 'Locked' ? 'bg-red-100 text-red-700' : ''}
+                              ${status === 'Returned' ? 'bg-amber-100 text-amber-700' : ''}
+                            `}>
+                              {status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <button onClick={() => { setSelectedEmpForKudos(employee); setIsKudosModalOpen(true); }} className="px-3 py-1.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg text-xs font-bold inline-flex items-center shadow-sm transition-colors mr-2">
+                              <Star className="w-3.5 h-3.5 mr-1.5 fill-current" /> Kudos
                             </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                            {status === 'Locked' && (
+                              <button 
+                                onClick={() => handleUnlockSheet(employee.id)}
+                                className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-navy-900 text-xs font-bold inline-flex items-center shadow-sm transition-colors"
+                              >
+                                <Unlock className="w-3.5 h-3.5 mr-1.5" /> Unlock
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Manager Section */}
+            <div className="glass-panel rounded-3xl overflow-hidden shadow-sm border border-white/40">
+              <div className="p-6 border-b border-gray-100 bg-white/40">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><Users className="w-5 h-5 mr-2 text-navy-600" /> Organization Managers</h2>
+                <p className="text-sm text-gray-500 font-medium mt-1">Management tier oversight and team allocation.</p>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-gray-50/50">
+                    <tr>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Department</th>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Reports</th>
+                      <th scope="col" className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white/60 divide-y divide-gray-100">
+                    {managers.map((manager) => {
+                      const reportCount = employees.filter(e => e.manager_id === manager.id).length;
+                      return (
+                        <tr key={manager.id} className="hover:bg-white/80 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="w-8 h-8 rounded-full bg-navy-900 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                                {manager.full_name.charAt(0)}
+                              </div>
+                              <div className="ml-3 font-bold text-gray-900 text-sm">{manager.full_name}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
+                            {manager.department || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-navy-600">
+                            {reportCount} Direct Reports
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <button onClick={() => { setSelectedEmpForKudos(manager); setIsKudosModalOpen(true); }} className="px-3 py-1.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg text-xs font-bold inline-flex items-center shadow-sm transition-colors">
+                              <Star className="w-3.5 h-3.5 mr-1.5 fill-current" /> Send Kudos
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </>
@@ -522,21 +568,55 @@ export default function AdminDashboard() {
               <thead className="bg-gray-50/50">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date & Time</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Goal Modified</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Changed By (ID)</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Changes</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Activity</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Performed By</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Details</th>
                 </tr>
               </thead>
               <tbody className="bg-white/60 divide-y divide-gray-100">
                 {auditLogs.map(log => (
                   <tr key={log.id} className="hover:bg-white/80 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-600">{new Date(log.changed_at).toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{log.goals?.title || 'Unknown Goal'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono text-xs">{log.changed_by.substring(0, 8)}...</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-600">
+                      {new Date(log.changed_at).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest inline-block w-fit mb-1 ${
+                          log.action === 'INSERT' ? 'bg-green-100 text-green-700' :
+                          log.action === 'UPDATE' ? 'bg-blue-100 text-blue-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {log.action}
+                        </span>
+                        <span className="text-sm font-bold text-gray-900">
+                          {log.table_name === 'goals' ? `Goal: ${log.goals?.title || 'New Goal'}` : 
+                           log.table_name === 'goal_sheets' ? 'Goal Sheet Update' : 'System Activity'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-600 mr-2 border border-gray-200">
+                          {log.profiles?.full_name?.charAt(0) || '?'}
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">{log.profiles?.full_name || 'System / Auto'}</span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <div className="max-w-md">
-                        <p className="text-xs text-red-500 line-through mb-1 break-all">Old: {JSON.stringify(log.old_value).substring(0, 80)}...</p>
-                        <p className="text-xs text-green-600 font-bold break-all">New: {JSON.stringify(log.new_value).substring(0, 80)}...</p>
+                        {log.action === 'UPDATE' ? (
+                          <p className="text-[10px] font-medium text-gray-500 line-clamp-2 italic">
+                            Modified properties in {log.table_name}
+                          </p>
+                        ) : log.action === 'INSERT' ? (
+                          <p className="text-[10px] font-medium text-green-600 italic">
+                            Created new record in {log.table_name}
+                          </p>
+                        ) : (
+                          <p className="text-[10px] font-medium text-red-600 italic">
+                            Removed record from {log.table_name}
+                          </p>
+                        )}
                       </div>
                     </td>
                   </tr>
