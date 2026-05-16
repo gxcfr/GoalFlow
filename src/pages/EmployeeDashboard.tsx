@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { AlertCircle, Plus, Trash2, Link as LinkIcon, CheckCircle, Target, Activity, Calendar, User, TrendingUp, ThumbsUp, BookOpen, Star } from 'lucide-react';
+import { AlertCircle, Plus, Trash2, Link as LinkIcon, CheckCircle, Calendar, User, ThumbsUp, BookOpen, Star } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, PieChart, Pie, Cell, Legend } from 'recharts';
 import { calculateProgressScore, getStatusColor } from '../lib/scoring';
 import { useSearchParams } from 'react-router-dom';
