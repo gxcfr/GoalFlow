@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { AlertCircle, Plus, Trash2, Link as LinkIcon, CheckCircle, Target, Activity, Calendar } from 'lucide-react';
+import { AlertCircle, Plus, Trash2, Link as LinkIcon, CheckCircle, Target, Activity, Calendar, User, TrendingUp, ThumbsUp, BookOpen, Star } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, PieChart, Pie, Cell, Legend } from 'recharts';
 import { calculateProgressScore, getStatusColor } from '../lib/scoring';
 
 export default function EmployeeDashboard() {
@@ -10,8 +11,11 @@ export default function EmployeeDashboard() {
   const [goals, setGoals] = useState<any[]>([]);
   const [sharedLinks, setSharedLinks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [manager, setManager] = useState<any>(null);
+  const [kudos, setKudos] = useState<any[]>([]);
+  const [sentiment, setSentiment] = useState<number>(3);
   
-  const [activeTab, setActiveTab] = useState<'builder' | 'progress'>('builder');
+  const [activeTab, setActiveTab] = useState<'builder' | 'progress' | 'performance'>('builder');
   
   // Demo Quarter Toggle (since time windows are strict)
   const [demoQuarter, setDemoQuarter] = useState<string | null>(null);
@@ -22,8 +26,22 @@ export default function EmployeeDashboard() {
   });
 
   useEffect(() => {
-    if (profile) fetchGoalSheet();
+    if (profile) {
+      fetchGoalSheet();
+      fetchKudos();
+      if (profile.manager_id) fetchManager(profile.manager_id);
+    }
   }, [profile]);
+
+  const fetchKudos = async () => {
+    const { data } = await supabase.from('kudos').select('*').eq('user_id', profile?.id).order('created_at', { ascending: false });
+    if (data) setKudos(data);
+  };
+
+  const fetchManager = async (managerId: string) => {
+    const { data } = await supabase.from('profiles').select('full_name').eq('id', managerId).single();
+    if (data) setManager(data);
+  };
 
   const fetchGoalSheet = async () => {
     setLoading(true);
@@ -123,9 +141,13 @@ export default function EmployeeDashboard() {
 
   const handleSubmitCheckin = async (quarter: string) => {
     try {
-      const { error } = await supabase.from('goal_sheets').update({ status: `${quarter} Submitted` }).eq('id', sheet.id);
+      const updates = { 
+        status: `${quarter} Submitted`,
+        [`sentiment_${quarter.toLowerCase()}`]: sentiment 
+      };
+      const { error } = await supabase.from('goal_sheets').update(updates).eq('id', sheet.id);
       if (error) throw error;
-      setSheet({ ...sheet, status: `${quarter} Submitted` });
+      setSheet({ ...sheet, ...updates });
     } catch (err: any) { alert(err.message); }
   };
 
@@ -152,6 +174,12 @@ export default function EmployeeDashboard() {
             `}>
               {sheet?.status}
             </span>
+            {manager && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white/80 text-navy-800 border border-gray-200 shadow-sm">
+                <User className="w-3.5 h-3.5 mr-1.5 text-navy-500" />
+                Reports to: {manager.full_name}
+              </span>
+            )}
           </div>
         </div>
         
@@ -165,6 +193,12 @@ export default function EmployeeDashboard() {
             disabled={['Draft', 'Submitted', 'Returned'].includes(sheet?.status)}
             className={`px-5 py-2.5 rounded-lg text-sm font-bold flex items-center transition-all ${activeTab === 'progress' ? 'bg-white text-navy-900 shadow-md' : 'text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed'}`}>
             <Activity className="w-4 h-4 mr-2" /> Progress
+          </button>
+          <button 
+            onClick={() => setActiveTab('performance')} 
+            disabled={['Draft', 'Submitted', 'Returned'].includes(sheet?.status)}
+            className={`px-5 py-2.5 rounded-lg text-sm font-bold flex items-center transition-all ${activeTab === 'performance' ? 'bg-white text-navy-900 shadow-md' : 'text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed'}`}>
+            <TrendingUp className="w-4 h-4 mr-2" /> Performance
           </button>
         </div>
 
@@ -406,27 +440,15 @@ export default function EmployeeDashboard() {
                     </div>
                   </div>
 
-                  {/* Manager Feedback */}
-                  <div className="mt-4 border-t border-gray-100 pt-4">
-                    {activeQ && goal[`manager_comment_${activeQ.toLowerCase()}` as keyof typeof goal] && (
-                      <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-3">
-                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Manager Check-in Comment ({activeQ})</p>
-                        <p className="text-sm text-gray-800">{goal[`manager_comment_${activeQ.toLowerCase()}` as keyof typeof goal]}</p>
+                  {currentStatus === 'Behind' && (
+                    <div className="mt-4 bg-orange-50 border border-orange-100 p-4 rounded-xl flex items-start">
+                      <BookOpen className="w-5 h-5 text-orange-500 mr-3 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-[10px] font-bold text-orange-800 uppercase tracking-widest mb-1">Skill-Bridge Suggestion</p>
+                        <p className="text-sm text-orange-900 leading-relaxed">Consider exploring internal learning resources or discussing blockers regarding <span className="font-bold">"{goal.thrust_area}"</span> during your next 1-on-1.</p>
                       </div>
-                    )}
-                    
-                    <div className="space-y-2">
-                      {['Q1', 'Q2', 'Q3', 'Q4'].filter(q => q !== activeQ).map(q => {
-                        const c = goal[`manager_comment_${q.toLowerCase()}` as keyof typeof goal];
-                        if (!c) return null;
-                        return (
-                          <div key={q} className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm text-gray-700">
-                            <span className="font-bold text-gray-900 mr-2">{q} Manager Feedback:</span> {c}
-                          </div>
-                        );
-                      })}
                     </div>
-                  </div>
+                  )}
 
                 </div>
               </div>
@@ -434,14 +456,163 @@ export default function EmployeeDashboard() {
           })}
 
           {activeQ && canEditCheckin && (
-            <div className="mt-8 flex justify-end border-t border-gray-200/50 pt-6">
-              <button onClick={() => handleSubmitCheckin(activeQ)} className="px-6 py-3 bg-navy-900 text-white rounded-xl shadow-lg hover:bg-navy-800 font-bold transition-all text-sm">
-                Submit {activeQ} Check-in for Manager Review
-              </button>
+            <div className="mt-8 glass-panel p-6 rounded-2xl border border-white/50 space-y-4">
+              <div>
+                <h4 className="text-sm font-bold text-gray-900 flex items-center mb-2"><ThumbsUp className="w-4 h-4 mr-2 text-navy-500" />Pulse Sentiment</h4>
+                <p className="text-xs text-gray-500 mb-4">How supported do you feel in achieving your goals this quarter?</p>
+                <div className="flex gap-2 max-w-md">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button 
+                      key={val} 
+                      onClick={() => setSentiment(val)}
+                      className={`flex-1 py-2.5 rounded-xl font-bold transition-all text-sm ${sentiment === val ? 'bg-navy-900 text-white shadow-md scale-105' : 'bg-white/60 text-gray-600 hover:bg-white border border-gray-200'}`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end pt-4 border-t border-gray-100">
+                <button onClick={() => handleSubmitCheckin(activeQ)} className="px-6 py-3 bg-navy-900 text-white rounded-xl shadow-lg hover:bg-navy-800 font-bold transition-all text-sm">
+                  Submit {activeQ} Check-in for Manager Review
+                </button>
+              </div>
             </div>
           )}
         </div>
       )}
+
+      {/* ---------------- PERFORMANCE TAB ---------------- */}
+      {activeTab === 'performance' && (() => {
+        const weightageData = Object.entries(
+          goals.reduce((acc, goal) => {
+            acc[goal.thrust_area] = (acc[goal.thrust_area] || 0) + Number(goal.weightage);
+            return acc;
+          }, {} as Record<string, number>)
+        ).map(([name, value]) => ({ name, value }));
+        const COLORS = ['#0f172a', '#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#ec4899'];
+
+        const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+        const trendData = quarters.map(q => {
+          let totalScore = 0; let count = 0;
+          goals.forEach(g => {
+            if (g[`actual_${q.toLowerCase()}`]) {
+              const s = calculateProgressScore(g.target_value, g[`actual_${q.toLowerCase()}`], g.uom, g.target_direction);
+              if (s !== null) { totalScore += s; count++; }
+            }
+          });
+          return { name: q, score: count ? Math.round(totalScore / count) : 0 };
+        });
+
+        const feedbackLog: { quarter: string; goalTitle: string; comment: string }[] = [];
+        quarters.forEach(q => {
+          goals.forEach(g => {
+            const comment = g[`manager_comment_${q.toLowerCase()}` as keyof typeof g];
+            if (comment) feedbackLog.push({ quarter: q, goalTitle: g.title, comment });
+          });
+        });
+
+        const onTrackCount = goals.filter(g => g[`status_${activeQ?.toLowerCase() || 'q1'}` as keyof typeof g] === 'On Track' || g[`status_${activeQ?.toLowerCase() || 'q1'}` as keyof typeof g] === 'Completed').length;
+        const behindCount = goals.filter(g => g[`status_${activeQ?.toLowerCase() || 'q1'}` as keyof typeof g] === 'Behind').length;
+
+        return (
+          <div className="space-y-6 animate-fade-in-up">
+            {/* Overview Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="glass-panel p-6 rounded-2xl border border-white/50">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Goal Health</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-3xl font-black text-navy-900">{onTrackCount}</p>
+                    <p className="text-xs font-bold text-green-600 mt-1 flex items-center"><CheckCircle className="w-3 h-3 mr-1"/>On Track / Done</p>
+                  </div>
+                  <div>
+                    <p className="text-3xl font-black text-gray-900">{behindCount}</p>
+                    <p className="text-xs font-bold text-orange-500 mt-1 flex items-center"><AlertCircle className="w-3 h-3 mr-1"/>Behind</p>
+                  </div>
+                </div>
+              </div>
+              <div className="glass-panel p-6 rounded-2xl border border-white/50 md:col-span-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Recognition & Badges</p>
+                {kudos.length === 0 ? (
+                  <p className="text-sm text-gray-500 italic">No badges earned yet. Keep pushing towards your goals!</p>
+                ) : (
+                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                    {kudos.map(k => (
+                      <div key={k.id} className="min-w-[200px] bg-white/60 p-4 rounded-xl border border-white shadow-sm flex flex-col items-center text-center">
+                        <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mb-3 text-yellow-600">
+                          <Star className="w-5 h-5 fill-current" />
+                        </div>
+                        <p className="text-xs font-bold text-gray-900 mb-1">{k.badge_type}</p>
+                        <p className="text-[10px] text-gray-500 mb-2 whitespace-nowrap overflow-hidden text-ellipsis w-full">from {k.sender_name}</p>
+                        <p className="text-xs text-gray-700 leading-tight italic">"{k.message}"</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Charts Area */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="glass-panel p-6 rounded-2xl border border-white/50">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6">Achievement Trend (QoQ %)</p>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={trendData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} domain={[0, 100]} />
+                      <RechartsTooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Bar dataKey="score" fill="#0f172a" radius={[6, 6, 0, 0]} maxBarSize={50} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="glass-panel p-6 rounded-2xl border border-white/50">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6">Thrust Area Weightage Focus</p>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={weightageData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                        {weightageData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Feedback Timeline */}
+            <div className="glass-panel p-6 rounded-2xl border border-white/50">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6">Feedback Timeline</p>
+              {feedbackLog.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">No manager feedback recorded yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {feedbackLog.map((log, i) => (
+                    <div key={i} className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">{log.quarter}</div>
+                        {i !== feedbackLog.length - 1 && <div className="w-0.5 h-full bg-blue-50 my-1"></div>}
+                      </div>
+                      <div className="pb-6 pt-1 flex-1">
+                        <p className="text-xs font-bold text-gray-500 mb-1">{log.goalTitle}</p>
+                        <div className="bg-white/80 p-4 rounded-xl shadow-sm border border-gray-100 text-sm text-gray-800">
+                          "{log.comment}"
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        );
+      })()}
     </div>
   );
 }

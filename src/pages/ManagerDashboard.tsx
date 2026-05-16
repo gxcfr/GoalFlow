@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Users, CheckCircle, XCircle, Search, MessageSquare, Activity, Edit2, Save } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Search, MessageSquare, Activity, Edit2, Save, Star, X } from 'lucide-react';
 import { calculateProgressScore, getStatusColor } from '../lib/scoring';
 
 export default function ManagerDashboard() {
@@ -19,6 +19,10 @@ export default function ManagerDashboard() {
   // Phase 3 Inline Editing
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+
+  // Phase 4 Kudos
+  const [isKudosModalOpen, setIsKudosModalOpen] = useState(false);
+  const [kudosForm, setKudosForm] = useState({ message: '', badge_type: 'Appreciation' });
 
   useEffect(() => {
     if (profile) fetchTeam();
@@ -89,6 +93,22 @@ export default function ManagerDashboard() {
     } catch (err: any) { alert(err.message); }
   };
 
+  const handleSendKudos = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase.from('kudos').insert({
+        user_id: selectedMember.id,
+        sender_name: profile?.full_name || 'Manager',
+        message: kudosForm.message,
+        badge_type: kudosForm.badge_type
+      });
+      if (error) throw error;
+      alert('Kudos sent successfully!');
+      setIsKudosModalOpen(false);
+      setKudosForm({ message: '', badge_type: 'Appreciation' });
+    } catch (err: any) { alert(err.message); }
+  };
+
   const filteredTeam = team.filter(m => m.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || m.department?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   if (loading) return <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-navy-900"></div></div>;
@@ -137,7 +157,12 @@ export default function ManagerDashboard() {
             {/* Header */}
             <div className="p-6 bg-white/40 border-b border-white/40 shadow-sm relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{selectedMember.full_name}'s Goal Sheet</h2>
+                <div className="flex items-center space-x-4">
+                  <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{selectedMember.full_name}'s Goal Sheet</h2>
+                  <button onClick={() => setIsKudosModalOpen(true)} className="px-3 py-1.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg text-xs font-bold flex items-center transition-colors shadow-sm">
+                    <Star className="w-3.5 h-3.5 mr-1.5 fill-current" /> Send Kudos
+                  </button>
+                </div>
                 <div className="mt-2 flex items-center space-x-3">
                   <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm
                     ${memberSheet.status === 'Draft' ? 'bg-gray-200 text-gray-700' : ''}
@@ -337,6 +362,37 @@ export default function ManagerDashboard() {
                 );
               })}
             </div>
+            
+            {/* Kudos Modal */}
+            {isKudosModalOpen && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-navy-900/40 backdrop-blur-sm rounded-3xl">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up">
+                  <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center"><Star className="w-5 h-5 mr-2 text-yellow-500 fill-current"/> Send Recognition</h3>
+                    <button onClick={() => setIsKudosModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                  </div>
+                  <form onSubmit={handleSendKudos} className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Badge Type</label>
+                      <select value={kudosForm.badge_type} onChange={e => setKudosForm({...kudosForm, badge_type: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 sm:text-sm font-medium">
+                        <option>Appreciation</option>
+                        <option>Early Achiever</option>
+                        <option>Team Player</option>
+                        <option>Excellence</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Message</label>
+                      <textarea required rows={3} value={kudosForm.message} onChange={e => setKudosForm({...kudosForm, message: e.target.value})} placeholder="Write a short message of appreciation..." className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 sm:text-sm font-medium"></textarea>
+                    </div>
+                    <div className="pt-2 flex justify-end">
+                      <button type="submit" className="px-6 py-2 bg-navy-900 text-white rounded-xl shadow hover:bg-navy-800 text-sm font-bold transition-colors">Send Kudos</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+            
           </div>
         )}
       </div>

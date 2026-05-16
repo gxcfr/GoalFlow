@@ -34,10 +34,10 @@ export default function Login() {
       <div className="hidden lg:flex lg:w-1/2 bg-mesh-dark relative items-center justify-center overflow-hidden">
         <div className="absolute inset-0 bg-navy-900/40"></div>
         <div className="relative z-10 flex flex-col items-center text-center px-12 animate-fade-in-up">
-          <div className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex items-center justify-center mb-8 shadow-2xl">
-            <Logo className="h-16 w-auto" />
+          <div className="mb-8 flex items-center justify-center">
+            <Logo className="h-20 w-auto drop-shadow-2xl" />
           </div>
-          <h1 className="text-5xl font-bold text-white mb-6 tracking-tight">Enterprise Goal Tracking</h1>
+          <h1 className="text-5xl font-bold text-white mb-6 tracking-tight">Align. Track. Execute.</h1>
           <p className="text-lg text-blue-100/80 max-w-md font-light leading-relaxed">
             Align your organization's objectives, streamline managerial reviews, and accelerate performance with GoalFlow.
           </p>

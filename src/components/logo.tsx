@@ -4,41 +4,45 @@ export const Logo: React.FC<{ className?: string }> = ({ className = "h-10" }) =
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 350 100"
-            className={className}
+            viewBox="0 0 320 80"
             fill="none"
+            className={className}
+        // Native transparency means no bg rect
         >
-            <g id="logo-mark" transform="translate(20, 20)">
+            <g id="logomark" transform="translate(10, 10)">
                 <path
-                    d="M10 10 L35 35 L10 60"
-                    fill="none"
-                    stroke="#1E3A8A"
-                    strokeWidth="12"
+                    d="M15 15 L35 35 L15 55"
+                    stroke="#FFFFFF"
+                    strokeWidth="8"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 />
                 <path
-                    d="M30 10 L55 35 L30 60"
-                    fill="none"
-                    stroke="#64748B"
-                    strokeWidth="12"
+                    d="M30 15 L50 35 L30 55"
+                    stroke="#94A3B8"
+                    strokeWidth="8"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    opacity="0.8"
+                    opacity="0.9"
                 />
             </g>
 
             <text
-                x="105"
-                y="64"
+                x="85"
+                y="52"
                 fontFamily="system-ui, -apple-system, sans-serif"
-                fontSize="42"
+                fontSize="36"
                 fontWeight="800"
-                letterSpacing="-1px"
-                fill="#1E3A8A"
+                letterSpacing="-1.5px"
+                fill="#FFFFFF"
             >
-                Goal
-                <tspan fill="#64748B" fontWeight="300">Flow</tspan>
+                Glow
+                <tspan
+                    fontWeight="300"
+                    fill="#E2E8F0"
+                >
+                    Flow
+                </tspan>
             </text>
         </svg>
     );

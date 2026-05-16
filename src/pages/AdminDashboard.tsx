@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Users, Target, Activity, FileDown, CheckCircle, Clock, Unlock, LayoutDashboard, Network, ShieldCheck, BarChart3, AlertTriangle } from 'lucide-react';
+import { Users, Target, Activity, FileDown, CheckCircle, Clock, Unlock, LayoutDashboard, Network, ShieldCheck, BarChart3, AlertTriangle, Star, X } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function AdminDashboard() {
@@ -19,6 +19,11 @@ export default function AdminDashboard() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [allGoals, setAllGoals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Phase 4 Kudos
+  const [isKudosModalOpen, setIsKudosModalOpen] = useState(false);
+  const [kudosForm, setKudosForm] = useState({ message: '', badge_type: 'Appreciation' });
+  const [selectedEmpForKudos, setSelectedEmpForKudos] = useState<any | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -88,6 +93,23 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSendKudos = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmpForKudos) return;
+    try {
+      const { error } = await supabase.from('kudos').insert({
+        user_id: selectedEmpForKudos.id,
+        sender_name: 'HR / Admin',
+        message: kudosForm.message,
+        badge_type: kudosForm.badge_type
+      });
+      if (error) throw error;
+      alert('Kudos sent successfully!');
+      setIsKudosModalOpen(false);
+      setKudosForm({ message: '', badge_type: 'Appreciation' });
+    } catch (err: any) { alert(err.message); }
+  };
+
   const handleExportCSV = async () => {
     const { data: goals, error } = await supabase
       .from('goals')
@@ -154,24 +176,44 @@ export default function AdminDashboard() {
     });
     const thrustAreaData = Object.keys(thrustAreaMap).map(k => ({ name: k, value: thrustAreaMap[k] }));
 
-    // Manager Effectiveness
-    const managerStats: Record<string, { total: number, completed: number }> = {};
-    managers.forEach(m => managerStats[m.id] = { total: 0, completed: 0 });
+    // Manager Calibration Engine
+    const managerCalib: Record<string, { totalScore: number, count: number }> = {};
+    managers.forEach(m => managerCalib[m.id] = { totalScore: 0, count: 0 });
     
-    employees.forEach(emp => {
-      if (!emp.manager_id) return;
-      if (!managerStats[emp.manager_id]) managerStats[emp.manager_id] = { total: 0, completed: 0 };
-      managerStats[emp.manager_id].total += 1;
-      const sheet = sheets.find(s => s.user_id === emp.id);
-      if (sheet && (sheet.status.includes('Approved') || sheet.status === 'Locked')) {
-        managerStats[emp.manager_id].completed += 1;
-      }
+    allGoals.forEach(g => {
+       const managerId = g.goal_sheets?.profiles?.manager_id;
+       if (managerId && managerCalib[managerId]) {
+         // calculate progress score using phase 3 utils
+         // we need to dynamically calculate score for whatever actuals exist
+         // import { calculateProgressScore } from '../lib/scoring';
+         // Wait, we need to bring calculateProgressScore into scope here if we want to use it
+         // Let's use the goals directly if they have actuals
+       }
     });
-    
-    const managerData = managers.map(m => ({
-      name: m.full_name,
-      rate: managerStats[m.id]?.total > 0 ? Math.round((managerStats[m.id].completed / managerStats[m.id].total) * 100) : 0
-    })).sort((a, b) => b.rate - a.rate);
+    // Let's implement it robustly:
+    const managerData = managers.map(m => {
+       let totalScore = 0; let count = 0;
+       allGoals.forEach(g => {
+         if (g.goal_sheets?.profiles?.manager_id === m.id) {
+           ['q1', 'q2', 'q3', 'q4'].forEach(q => {
+             const actual = g[`actual_${q}`];
+             if (actual) {
+               let s = 0;
+               if (g.uom === 'Numeric' || g.uom === '%') {
+                 s = (Number(actual) / Number(g.target_value)) * 100;
+                 if (g.target_direction === 'Minimize') s = (Number(g.target_value) / Number(actual)) * 100;
+               } else if (g.uom === 'Timeline') {
+                 s = new Date(actual) <= new Date(g.target_value) ? 100 : 50;
+               } else if (g.uom === 'Zero-based') {
+                 s = Number(actual) === 0 ? 100 : 0;
+               }
+               if (!isNaN(s)) { totalScore += s; count++; }
+             }
+           });
+         }
+       });
+       return { name: m.full_name, avgScore: count > 0 ? Math.round(totalScore / count) : 0 };
+    }).sort((a, b) => b.avgScore - a.avgScore);
 
     // QoQ Achievement Trends
     const qStats = { Q1: { total: 0, comp: 0 }, Q2: { total: 0, comp: 0 }, Q3: { total: 0, comp: 0 }, Q4: { total: 0, comp: 0 } };
@@ -353,6 +395,9 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <button onClick={() => { setSelectedEmpForKudos(employee); setIsKudosModalOpen(true); }} className="px-3 py-1.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg text-xs font-bold inline-flex items-center shadow-sm transition-colors mr-2">
+                            <Star className="w-3.5 h-3.5 mr-1.5 fill-current" /> Kudos
+                          </button>
                           {status === 'Locked' && (
                             <button 
                               onClick={() => handleUnlockSheet(employee.id)}
@@ -507,8 +552,23 @@ export default function AdminDashboard() {
         <div className="glass-panel rounded-3xl overflow-hidden shadow-sm border border-white/40 animate-fade-in">
           <div className="p-6 border-b border-gray-100 bg-white/40 flex justify-between items-center">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><AlertTriangle className="w-5 h-5 mr-2 text-red-600" /> Escalation Log</h2>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><AlertTriangle className="w-5 h-5 mr-2 text-red-600" /> Escalations & Smart Thresholds</h2>
               <p className="text-sm text-gray-500 font-medium mt-1">Configurable auto-notifications and SLA breaches.</p>
+            </div>
+          </div>
+          <div className="p-6 bg-gray-50/50 border-b border-gray-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-full blur-xl -z-0"></div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 relative z-10">Smart Threshold Rule</p>
+              <div className="flex items-center space-x-3 mb-4 relative z-10">
+                <select className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold flex-1 text-gray-700">
+                  <option>Draft Non-Submission</option>
+                  <option>Check-in Delay</option>
+                </select>
+                <span className="text-sm font-bold text-gray-400">&gt;</span>
+                <input type="number" defaultValue={80} className="w-20 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-700" /> <span className="text-sm font-bold text-gray-400">%</span>
+              </div>
+              <button className="w-full px-4 py-2 bg-navy-900 hover:bg-navy-800 text-white rounded-lg text-xs font-bold transition-all relative z-10 shadow-md">Apply Threshold</button>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -575,7 +635,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="glass-panel p-6 rounded-3xl shadow-sm border border-white/40">
-              <h3 className="text-sm font-bold text-gray-900 mb-6 uppercase tracking-wider">Manager Effectiveness (Approval Rate)</h3>
+              <h3 className="text-sm font-bold text-gray-900 mb-6 uppercase tracking-wider">Calibration Engine (Avg Team Score %)</h3>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={getAnalyticsData().managerData} layout="vertical" margin={{ top: 0, right: 0, left: 20, bottom: 0 }}>
@@ -583,7 +643,7 @@ export default function AdminDashboard() {
                     <XAxis type="number" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12, fontWeight: 600 }} />
                     <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#374151', fontSize: 11, fontWeight: 600 }} width={80} />
                     <RechartsTooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    <Bar dataKey="rate" fill="#10B981" radius={[0, 6, 6, 0]} barSize={20} />
+                    <Bar dataKey="avgScore" fill="#10B981" radius={[0, 6, 6, 0]} barSize={20} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -605,6 +665,38 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Kudos Modal */}
+      {isKudosModalOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-navy-900/40 backdrop-blur-sm rounded-3xl">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up">
+            <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center"><Star className="w-5 h-5 mr-2 text-yellow-500 fill-current"/> Send Corporate Kudos</h3>
+              <button onClick={() => setIsKudosModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+            </div>
+            <form onSubmit={handleSendKudos} className="p-6 space-y-4">
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
+                <p className="text-xs font-bold text-blue-800">To: {selectedEmpForKudos?.full_name}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Badge Type</label>
+                <select value={kudosForm.badge_type} onChange={e => setKudosForm({...kudosForm, badge_type: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 sm:text-sm font-medium">
+                  <option>Company Value Champion</option>
+                  <option>Outstanding Leadership</option>
+                  <option>Innovation Award</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Message</label>
+                <textarea required rows={3} value={kudosForm.message} onChange={e => setKudosForm({...kudosForm, message: e.target.value})} placeholder="Official recognition message..." className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 sm:text-sm font-medium"></textarea>
+              </div>
+              <div className="pt-2 flex justify-end">
+                <button type="submit" className="px-6 py-2 bg-navy-900 text-white rounded-xl shadow hover:bg-navy-800 text-sm font-bold transition-colors">Send Recognition</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
