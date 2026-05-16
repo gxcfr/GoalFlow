@@ -157,7 +157,7 @@ export default function Layout() {
       </div>
 
       {/* Main content */}
-      <div className="flex flex-col w-0 flex-1 overflow-hidden p-0 md:p-6 md:pl-6">
+      <div className="flex flex-col w-full md:w-0 flex-1 overflow-hidden p-0 md:p-6 md:pl-6">
         {/* Desktop Top Header Pill */}
         <div className="hidden md:flex w-full justify-end mb-6">
           <div className="bg-mesh-dark relative overflow-hidden rounded-full shadow-lg border border-white/10 flex items-center pr-2 pl-6 py-2">
