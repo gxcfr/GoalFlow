@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Target, AlertCircle, Info, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, Info, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import Logo from '../components/logo';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -52,8 +53,8 @@ export default function Signup() {
       <div className="w-full lg:w-1/2 flex items-center justify-center bg-mesh px-4 py-12 sm:px-6 lg:px-8 overflow-y-auto">
         <div className="w-full max-w-md space-y-8 animate-fade-in-up">
           <div>
-            <div className="flex lg:hidden justify-center text-navy-900 mb-6">
-              <Target className="h-10 w-10 text-blue-600" />
+            <div className="flex lg:hidden justify-center mb-6">
+              <Logo className="h-10 w-auto text-navy-900" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Create your account</h2>
             <p className="mt-2 text-sm text-gray-600">Join GoalFlow to align with your organization.</p>

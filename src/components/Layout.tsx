@@ -1,12 +1,14 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, LayoutDashboard, Target as TargetIcon, Users } from 'lucide-react';
+import { LogOut, LayoutDashboard, Target as TargetIcon, Users, Menu, X } from 'lucide-react';
+import React, { useState } from 'react';
 import Logo from './logo';
 import LogoMark from './tinylogo';
 
 export default function Layout() {
   const { profile, signOut } = useAuth();
   const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const getNavigation = () => {
     switch (profile?.role) {
@@ -28,20 +30,98 @@ export default function Layout() {
   const navigation = getNavigation();
 
   return (
-    <div className="min-h-screen bg-mesh flex text-gray-900 font-sans">
+    <div className="min-h-screen bg-mesh flex flex-col md:flex-row text-gray-900 font-sans">
+      {/* Mobile Header */}
+      <div className="md:hidden flex items-center justify-between px-6 py-4 bg-mesh-dark text-white shadow-lg sticky top-0 z-50">
+        <Logo className="h-8 w-auto text-white" />
+        <button 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-2 rounded-xl bg-white/10 text-white"
+        >
+          {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        </button>
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-[100] flex">
+          <div className="fixed inset-0 bg-navy-900/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-mesh-dark shadow-2xl animate-fade-in">
+            <div className="absolute top-0 right-0 -mr-12 pt-2">
+              <button
+                type="button"
+                className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <X className="h-6 w-6 text-white" />
+              </button>
+            </div>
+            <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
+              <div className="flex-shrink-0 flex items-center px-6">
+                <Logo className="h-10 w-auto text-white" />
+              </div>
+              <nav className="mt-8 px-4 space-y-2">
+                {navigation.map((item) => {
+                  const isActive = location.pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all ${
+                        isActive
+                          ? 'bg-white/20 text-white shadow-md'
+                          : 'text-blue-100 hover:bg-white/10'
+                      }`}
+                    >
+                      <item.icon className="mr-4 h-5 w-5" />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+                <button
+                  onClick={() => {
+                    signOut();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex items-center w-full px-4 py-3 text-sm font-semibold rounded-xl text-red-300 hover:bg-red-500/10 transition-all"
+                >
+                  <LogOut className="mr-4 h-5 w-5" />
+                  Sign out
+                </button>
+              </nav>
+            </div>
+            <div className="flex-shrink-0 flex border-t border-white/10 p-6">
+              <div className="flex-shrink-0 group block">
+                <div className="flex items-center">
+                  <div>
+                    <div className="inline-block h-10 w-10 rounded-full bg-white/10 flex items-center justify-center">
+                      <span className="text-white font-bold">{profile?.full_name?.charAt(0)}</span>
+                    </div>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-white">{profile?.full_name}</p>
+                    <p className="text-xs font-medium text-blue-200 uppercase tracking-widest">{profile?.role.replace('_', ' ')}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Sidebar */}
       <div className="hidden md:flex md:flex-col p-6 pr-0 z-50 group transition-all duration-300 ease-in-out w-[120px] hover:w-72">
         <div className="flex flex-col flex-grow bg-mesh-dark relative rounded-3xl overflow-hidden animate-fade-in transition-all duration-300 shadow-2xl">
           <div className="absolute inset-0 bg-navy-900/40 z-0"></div>
           
           <div className="relative z-10 flex flex-col flex-grow">
             <div className="flex items-center flex-shrink-0 py-8 relative h-24 w-full">
-              {/* Tiny Logo - Shows when unhovered, perfectly centered */}
               <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 opacity-100 group-hover:opacity-0 scale-100 group-hover:scale-75">
-                <LogoMark className="h-8 w-8 drop-shadow-md" />
+                <LogoMark className="h-8 w-8 drop-shadow-md text-white" />
               </div>
-              {/* Full Logo - Shows when hovered, left aligned matching the nav items */}
               <div className="absolute inset-0 flex items-center px-6 transition-all duration-300 opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100">
-                <Logo className="h-10 w-auto drop-shadow-md" />
+                <Logo className="h-10 w-auto drop-shadow-md text-white" />
               </div>
             </div>
             
@@ -77,9 +157,9 @@ export default function Layout() {
       </div>
 
       {/* Main content */}
-      <div className="flex flex-col w-0 flex-1 overflow-hidden p-6 pl-6">
-        {/* Top Header Pill */}
-        <div className="w-full flex justify-end mb-6">
+      <div className="flex flex-col w-0 flex-1 overflow-hidden p-0 md:p-6 md:pl-6">
+        {/* Desktop Top Header Pill */}
+        <div className="hidden md:flex w-full justify-end mb-6">
           <div className="bg-mesh-dark relative overflow-hidden rounded-full shadow-lg border border-white/10 flex items-center pr-2 pl-6 py-2">
             <div className="absolute inset-0 bg-navy-900/40 z-0"></div>
             <div className="relative z-10 flex items-center space-x-4">
@@ -98,7 +178,7 @@ export default function Layout() {
           </div>
         </div>
 
-        <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none scrollbar-hide">
+        <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none scrollbar-hide p-6 md:p-0">
           <div className="h-full">
             <div className="max-w-7xl mx-auto h-full flex flex-col animate-fade-in-up">
               <div className="flex-grow">
@@ -106,7 +186,7 @@ export default function Layout() {
               </div>
               
               {/* Footer Credits */}
-              <div className="mt-12 py-6 border-t border-white/20 text-center flex flex-col items-center justify-center space-y-2">
+              <div className="mt-12 py-6 border-t border-gray-200/50 text-center flex flex-col items-center justify-center space-y-2">
                 <p className="text-xs text-gray-400 font-medium tracking-wide uppercase">
                   Handcrafted with precision & styled for excellence
                 </p>

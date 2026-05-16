@@ -35,7 +35,7 @@ export default function Login() {
         <div className="absolute inset-0 bg-navy-900/40"></div>
         <div className="relative z-10 flex flex-col items-center text-center px-12 animate-fade-in-up">
           <div className="mb-8 flex items-center justify-center">
-            <Logo className="h-20 w-auto drop-shadow-2xl" />
+            <Logo className="h-20 w-auto drop-shadow-2xl text-white" />
           </div>
           <h1 className="text-5xl font-bold text-white mb-6 tracking-tight">Align. Track. Execute.</h1>
           <p className="text-lg text-blue-100/80 max-w-md font-light leading-relaxed">
@@ -53,7 +53,7 @@ export default function Login() {
         <div className="w-full max-w-md space-y-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           <div>
             <div className="flex lg:hidden justify-center mb-6">
-              <Logo className="h-12 w-auto" />
+              <Logo className="h-12 w-auto text-navy-900" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Welcome back</h2>
             <p className="mt-2 text-sm text-gray-600">Please enter your credentials to access your portal.</p>
