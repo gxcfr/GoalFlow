@@ -1,7 +1,7 @@
-# GoalFlow - Enterprise Goal Tracking Portal
+# GlowFlow - Enterprise Goal Tracking & Talent Management Portal
 
 ## Overview
-GoalFlow is a modern, responsive, and highly secure enterprise goal tracking and performance management portal. It is built to align organizational objectives, streamline managerial reviews, and accelerate employee performance. It enables employees to define their quarterly goals, managers to review and approve them, and HR/Admins to oversee the entire organization.
+GlowFlow (formerly GoalFlow) is a modern, responsive, and highly secure enterprise goal tracking and performance management portal. It is built to align organizational objectives, streamline managerial reviews, and accelerate employee performance through continuous engagement. It enables employees to define their quarterly goals and track progress, managers to review and recognize achievements, and HR/Admins to oversee the entire organization with advanced analytics and governance.
 
 ## Tech Stack
 *   **Frontend Framework:** React 19
@@ -18,9 +18,9 @@ GoalFlow is a modern, responsive, and highly secure enterprise goal tracking and
 
 ## Key Roles & Access Levels
 The system features strict Row Level Security (RLS) managed by Supabase, tailored for three distinct roles:
-1.  **Employee:** Can create, view, and update their own goals and quarterly progress.
-2.  **Manager (L1):** Can view their team's goals, provide feedback, and approve/return goal sheets and quarterly check-ins.
-3.  **Admin/HR:** Has enterprise oversight, manages the organizational hierarchy, views analytics, and monitors compliance via audit logs.
+1.  **Employee:** Can create, view, update their own goals, track quarterly progress, and receive social feedback (Kudos).
+2.  **Manager (L1):** Can view their team's goals, provide feedback, approve/return goal sheets, and send corporate Kudos.
+3.  **Admin/HR:** Has enterprise oversight, manages the organizational hierarchy, views calibration analytics, monitors compliance via audit logs, and sets smart escalation thresholds.
 
 ---
 
@@ -31,35 +31,34 @@ The system features strict Row Level Security (RLS) managed by Supabase, tailore
 *   **Row Level Security (RLS):** Data access is strictly controlled at the database level. Employees cannot see other employees' goals, ensuring absolute data privacy.
 *   **Secure Auth Flow:** Powered by Supabase Auth with custom premium UI login screens adapting to desktop and mobile devices.
 
-### 2. Employee Features (Goal Lifecycle Management)
+### 2. Employee Features (Goal Lifecycle & Engagement)
 *   **Goal Sheet Creation:** Employees can define multiple goals categorized by "Thrust Areas" (e.g., Growth, Innovation) and "Unit of Measure (UOM)" (Percentage, Numeric, Date).
 *   **Dynamic Status Tracking:** Goal sheets progress through a rigid, automated lifecycle: `Draft` -> `Submitted` -> `Approved` -> `Locked`.
-*   **Quarterly Check-ins:** Once a goal sheet is "Locked", the system dynamically enters the Quarterly review phase. Employees can submit progress explicitly for Q1, Q2, Q3, and Q4 during specified time windows.
-*   **Automated Progress Scoring:** The system automatically computes "Progress Scores" for each goal using predefined mathematical formulas based on Actual Achievement vs. Planned Target, ensuring objective tracking.
-*   **Real-time Feedback Notifications:** Manager feedback left during the quarterly review process is saved and immediately displayed on the employee's dashboard as distinct highlight cards.
+*   **Quarterly Check-ins & Pulse Sentiment:** Employees submit progress for Q1, Q2, Q3, and Q4 during specified time windows. During submission, a **Pulse Sentiment** "vibe check" captures how supported the employee feels (1-5 rating).
+*   **Automated Progress Scoring:** The system automatically computes "Progress Scores" for each goal based on Actual Achievement vs. Planned Target, ensuring objective tracking.
+*   **Skill-Bridge Recommendations:** If a goal falls "Behind", the system displays contextual suggestions advising employees to explore internal learning resources or discuss blockers during 1-on-1s.
+*   **Performance Hub:** A dedicated tab featuring:
+    *   **Visual Trends (Recharts):** Quarter-over-Quarter achievement trend bars and Thrust Area weightage donut charts.
+    *   **Kudos & Recognition Cabinet:** A display of all digital badges and messages received from managers and leadership.
+    *   **Feedback Timeline:** A chronological log of all Check-in comments left by managers.
 
-### 3. Manager Features (Team Leadership)
+### 3. Manager Features (Team Leadership & Recognition)
 *   **Team Overview Dashboard:** Managers have a dedicated hub to view all employees assigned to their specific reporting line.
-*   **Approval Workflow:** Managers can review pending goal sheets and choose to explicitly `Approve` or `Return` them. Returning a sheet requires mandatory feedback.
-*   **Cyclical Quarterly Approvals:** Instead of a permanent global lock, managers approve individual quarterly check-ins (e.g., transitioning "Q1 Submitted" to "Q1 Approved"). Once approved, the sheet resets and becomes editable for the *next* quarter.
-*   **Dynamic Status Badges:** Color-coded visual indicators help managers quickly identify which team members have drafted, submitted, or locked goals, prioritizing immediate review needs.
+*   **Approval Workflow & Cyclical Reviews:** Managers review pending goal sheets and quarterly check-ins, explicitly choosing to `Approve` or `Return` them with mandatory feedback.
+*   **Micro-Kudos & Social Validation:** Managers can instantly send "Kudos" (digital badges like *Early Achiever* or *Team Player* with custom messages) directly to their direct reports to foster a positive feedback culture.
+*   **Dynamic Status Badges:** Color-coded visual indicators help managers quickly identify which team members need immediate review or intervention.
 
 ### 4. Admin & HR Features (Enterprise Governance)
 *   **Overview Dashboard:** A high-level metric view of total employees, pending approvals, approved sheets, and locked sheets across the organization.
-*   **Interactive Drag-and-Drop Organogram:** A visual administrative workspace where Admins can drag unassigned employees and drop them directly into a specific manager's team bucket to assign reporting structures seamlessly.
-*   **Enterprise Audit Trail:** A strict compliance log tracking all modifications made to goals *after* they have been Locked. It meticulously logs the exact timestamp, the user ID of who made the change, and a JSON diff of the old vs. new values.
-*   **Achievement Report Export:** Admins can instantly export a comprehensive CSV file containing every employee's Planned Targets vs. Actual Achievements spanning all four quarters.
-*   **Quarterly Completion Dashboard:** A real-time monitoring table tracking the exact check-in status (e.g., "Q1 Submitted", "Q1 Approved") for both Employees and Managers (since managers also have goals).
-*   **Escalation Log (SLA Tracking):** An automated SLA monitoring engine that dynamically flags severe compliance issues, such as:
-    *   *High Severity:* Employee has not submitted goals within 7 days of the cycle opening.
-    *   *Critical Severity:* Manager has not approved submitted goals within 5 days.
-*   **Analytics Module (Recharts Integration):** Interactive enterprise insights including:
-    *   *QoQ Achievement Trends:* A bar chart tracking the percentage of completed goals quarter over quarter.
-    *   *Manager Effectiveness:* A horizontal bar chart evaluating L1 Managers by their team's overall check-in approval rate.
-    *   *Goal Distribution:* A dynamic pie/donut chart visualizing the breakdown of all enterprise goals by their Thrust Area.
+*   **Interactive Drag-and-Drop Organogram:** A visual administrative workspace where Admins drag unassigned employees and drop them into a manager's team bucket.
+*   **Automated Calibration Engine:** Replaces basic approval rates with an advanced Recharts dashboard that calculates the **Average Team Score (%)** for every manager, helping HR easily identify "easy graders" vs. "tough graders".
+*   **Enterprise Audit Trail:** A strict compliance log tracking all modifications made to goals *after* they have been Locked (logging timestamp, user ID, and JSON diffs).
+*   **Smart Thresholds & Escalations (SLA Tracking):** An automated SLA monitoring engine with a configurable UI. Admins can set rules (e.g., *Draft Non-Submission > 80%*) to dynamically flag and escalate compliance issues before they breach.
+*   **Corporate Kudos:** Admins and HR can award high-level corporate badges (e.g., *Company Value Champion*) across the entire organization.
+*   **Achievement Report Export:** Instant CSV exports of all employee Planned Targets vs. Actual Achievements spanning all four quarters.
 
 ### 5. UI/UX & Design Aesthetics
-*   **Premium Glassmorphism Interface:** Designed with a stunning, modern aesthetic using heavily customized Tailwind CSS, frosted glass panels (`backdrop-blur`), deep mesh backgrounds, and curated typography.
+*   **Premium Glassmorphism Interface:** Designed with a stunning, modern aesthetic using heavily customized Tailwind CSS, frosted glass panels (`backdrop-blur`), deep mesh backgrounds (`bg-mesh-dark`), and curated typography.
+*   **Branded Identity:** Fully integrated "GlowFlow" branding with animated Logo and LogoMark transitions in the sidebar, persistent footer accreditations, and unified global layout panels.
 *   **Collapsible Sidebar Navigation:** A smooth, responsive side navigation menu with fluid hover-expand animations designed to maximize screen real estate for deep-focus work.
-*   **Custom Brand Integration:** Integrates custom SVG logos mapped accurately and responsively across both Desktop sidebars and Mobile viewports.
 *   **Fully Responsive Layout:** The entire portal scales flawlessly across ultra-wide desktop monitors, standard laptops, tablets, and mobile devices.
