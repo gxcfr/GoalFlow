@@ -44,7 +44,7 @@ export const Logo: React.FC<{ className?: string }> = ({ className = "h-10" }) =
                 letterSpacing="-1.5px"
                 fill="currentColor"
             >
-                Glow
+                Goal
                 <tspan
                     fontWeight="300"
                     fill="currentColor"
