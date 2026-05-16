@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LogOut, LayoutDashboard, Target as TargetIcon, Users, Menu, X } from 'lucide-react';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Logo from './logo';
 import LogoMark from './tinylogo';
 
