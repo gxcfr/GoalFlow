@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Users, CheckCircle, XCircle, Search, MessageSquare, Activity, Edit2, Save, Star, X } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Search, MessageSquare, Activity, Edit2, Save, Star, X, AlertTriangle, TrendingUp, UserCheck, Clock } from 'lucide-react';
 import { calculateProgressScore, getStatusColor } from '../lib/scoring';
+import { useSearchParams } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 export default function ManagerDashboard() {
   const { profile } = useAuth();
+  const [searchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'team';
+  
   const [team, setTeam] = useState<any[]>([]);
+  const [allTeamSheets, setAllTeamSheets] = useState<any[]>([]);
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [memberSheet, setMemberSheet] = useState<any | null>(null);
   const [memberGoals, setMemberGoals] = useState<any[]>([]);
@@ -30,8 +36,14 @@ export default function ManagerDashboard() {
 
   const fetchTeam = async () => {
     setLoading(true);
-    const { data } = await supabase.from('profiles').select('*').eq('manager_id', profile?.id);
-    if (data) setTeam(data);
+    const { data: teamData } = await supabase.from('profiles').select('*').eq('manager_id', profile?.id);
+    if (teamData) {
+      setTeam(teamData);
+      
+      // Fetch all sheets for performance/escalation tabs
+      const { data: sheetsData } = await supabase.from('goal_sheets').select('*').in('user_id', teamData.map(m => m.id)).eq('cycle', 'FY2026');
+      if (sheetsData) setAllTeamSheets(sheetsData);
+    }
     setLoading(false);
   };
 
@@ -111,10 +123,63 @@ export default function ManagerDashboard() {
 
   const filteredTeam = team.filter(m => m.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || m.department?.toLowerCase().includes(searchQuery.toLowerCase()));
 
+  const getPerformanceData = () => {
+    const statusCounts = {
+      'Not Started': 0,
+      'Draft': 0,
+      'Submitted': 0,
+      'Approved': 0,
+      'Locked': 0,
+      'Returned': 0
+    };
+    
+    allTeamSheets.forEach(s => {
+      let status = s.status || 'Not Started';
+      if (status.includes('Submitted')) status = 'Submitted';
+      if (status.includes('Approved')) status = 'Approved';
+      if (statusCounts.hasOwnProperty(status)) {
+        (statusCounts as any)[status]++;
+      }
+    });
+
+    const pieData = Object.entries(statusCounts).map(([name, value]) => ({ name, value })).filter(d => d.value > 0);
+    
+    // People following schedule (Quarter wise) - Mock logic based on submission status
+    const scheduleData = [
+      { name: 'Q1', following: allTeamSheets.filter(s => s.status.includes('Q1 Approved') || s.status === 'Locked').length },
+      { name: 'Q2', following: allTeamSheets.filter(s => s.status.includes('Q2 Approved') || s.status === 'Locked').length },
+      { name: 'Q3', following: allTeamSheets.filter(s => s.status.includes('Q3 Approved') || s.status === 'Locked').length },
+      { name: 'Q4', following: allTeamSheets.filter(s => s.status.includes('Q4 Approved') || s.status === 'Locked').length },
+    ];
+
+    return { pieData, scheduleData };
+  };
+
+  const getEscalations = () => {
+    const now = new Date().getTime();
+    return allTeamSheets.map(sheet => {
+      const member = team.find(m => m.id === sheet.user_id);
+      if (!member) return null;
+      
+      const updatedTime = new Date(sheet.updated_at || sheet.created_at).getTime();
+      const daysSinceUpdate = Math.floor((now - updatedTime) / (1000 * 3600 * 24));
+      
+      if (sheet.status === 'Draft' && daysSinceUpdate > 7) {
+        return { id: sheet.id, name: member.full_name, issue: 'Goals not submitted (7+ days)', severity: 'High', days: daysSinceUpdate };
+      }
+      // Note: Only employee escalations as per requirement
+      return null;
+    }).filter(Boolean);
+  };
+
   if (loading) return <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-navy-900"></div></div>;
 
+  const COLORS = ['#94a3b8', '#64748b', '#3b82f6', '#10b981', '#ef4444', '#f59e0b'];
+
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-6">
+    <div className="h-full">
+      {activeTab === 'team' && (
+        <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-6">
       {/* Sidebar: Team List */}
       <div className="w-full lg:w-1/3 glass-panel rounded-3xl flex flex-col overflow-hidden">
         <div className="p-6 border-b border-white/20 bg-white/10">
@@ -396,6 +461,127 @@ export default function ManagerDashboard() {
           </div>
         )}
       </div>
+      </div>
+    )}
+
+    {activeTab === 'performance' && (
+      <div className="space-y-6 animate-fade-in-up">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="glass-panel p-6 rounded-2xl bg-white/40">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-blue-100 rounded-lg text-blue-600"><Users className="w-5 h-5" /></div>
+              <h3 className="font-bold text-gray-500 text-sm">Team Size</h3>
+            </div>
+            <p className="text-3xl font-black text-gray-900">{team.length}</p>
+          </div>
+          <div className="glass-panel p-6 rounded-2xl bg-white/40">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-green-100 rounded-lg text-green-600"><UserCheck className="w-5 h-5" /></div>
+              <h3 className="font-bold text-gray-500 text-sm">Approved Goals</h3>
+            </div>
+            <p className="text-3xl font-black text-gray-900">{allTeamSheets.filter(s => s.status.includes('Approved') || s.status === 'Locked').length}</p>
+          </div>
+          <div className="glass-panel p-6 rounded-2xl bg-white/40">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-amber-100 rounded-lg text-amber-600"><Clock className="w-5 h-5" /></div>
+              <h3 className="font-bold text-gray-500 text-sm">Pending Review</h3>
+            </div>
+            <p className="text-3xl font-black text-gray-900">{allTeamSheets.filter(s => s.status === 'Submitted').length}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="glass-panel p-6 rounded-3xl bg-white/40 border border-white/60">
+            <h3 className="text-sm font-bold text-gray-900 mb-6 uppercase tracking-wider flex items-center">
+              <TrendingUp className="w-4 h-4 mr-2 text-navy-600" /> Goal Cycle Adoption
+            </h3>
+            <div className="h-64 w-full flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={getPerformanceData().pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {getPerformanceData().pieData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="ml-4 space-y-2">
+                {getPerformanceData().pieData.map((d, i) => (
+                  <div key={d.name} className="flex items-center text-xs font-bold text-gray-600">
+                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
+                    {d.name}: {d.value}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-panel p-6 rounded-3xl bg-white/40 border border-white/60">
+            <h3 className="text-sm font-bold text-gray-900 mb-6 uppercase tracking-wider flex items-center">
+              <Activity className="w-4 h-4 mr-2 text-navy-600" /> Schedule Adherence (Quarterly)
+            </h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={getPerformanceData().scheduleData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12, fontWeight: 600 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12, fontWeight: 600 }} />
+                  <RechartsTooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Bar dataKey="following" fill="#1e3a8a" radius={[4, 4, 0, 0]} barSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {activeTab === 'escalations' && (
+      <div className="glass-panel rounded-3xl overflow-hidden shadow-sm border border-white/40 animate-fade-in-up">
+        <div className="p-6 border-b border-gray-100 bg-white/40">
+          <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><AlertTriangle className="w-5 h-5 mr-2 text-red-600" /> Team Escalations</h2>
+          <p className="text-sm text-gray-500 font-medium mt-1">Direct reports with overdue goal cycle actions.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50/50">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Severity</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Employee</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Issue</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Days Overdue</th>
+                <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white/60 divide-y divide-gray-100">
+              {getEscalations().map((esc: any) => (
+                <tr key={esc.id} className="hover:bg-white/80 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded ${esc.severity === 'High' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {esc.severity}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{esc.name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600 font-medium">{esc.issue}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600">{esc.days} days</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <button className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-navy-900 text-xs font-bold shadow-sm transition-colors">
+                      Notify Employee
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {getEscalations().length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-sm font-medium text-gray-500">No active escalations for your team.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

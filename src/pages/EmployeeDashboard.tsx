@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { AlertCircle, Plus, Trash2, Link as LinkIcon, CheckCircle, Target, Activity, Calendar, User, TrendingUp, ThumbsUp, BookOpen, Star } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, PieChart, Pie, Cell, Legend } from 'recharts';
 import { calculateProgressScore, getStatusColor } from '../lib/scoring';
+import { useSearchParams } from 'react-router-dom';
 
 export default function EmployeeDashboard() {
   const { profile } = useAuth();
@@ -15,7 +16,8 @@ export default function EmployeeDashboard() {
   const [kudos, setKudos] = useState<any[]>([]);
   const [sentiment, setSentiment] = useState<number>(3);
   
-  const [activeTab, setActiveTab] = useState<'builder' | 'progress' | 'performance'>('builder');
+  const [searchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'builder';
   
   // Demo Quarter Toggle (since time windows are strict)
   const [demoQuarter, setDemoQuarter] = useState<string | null>(null);
@@ -50,8 +52,10 @@ export default function EmployeeDashboard() {
     if (sheets && sheets.length > 0) {
       setSheet(sheets[0]);
       await fetchGoals(sheets[0].id);
-      if (!['Draft', 'Submitted', 'Returned'].includes(sheets[0].status)) {
-        setActiveTab('progress');
+      if (!['Draft', 'Submitted', 'Returned'].includes(sheets[0].status) && activeTab === 'builder') {
+        const params = new URLSearchParams(window.location.search);
+        params.set('tab', 'progress');
+        window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
       }
     } else {
       const { data: newSheet, error } = await supabase.from('goal_sheets').insert({ user_id: profile?.id, cycle: 'FY2026', status: 'Draft' }).select().single();
@@ -183,41 +187,25 @@ export default function EmployeeDashboard() {
           </div>
         </div>
         
-        {/* Navigation Tabs */}
-        <div className="flex bg-white/40 p-1 rounded-xl shadow-inner mb-4 lg:mb-0">
-          <button onClick={() => setActiveTab('builder')} className={`px-5 py-2.5 rounded-lg text-sm font-bold flex items-center transition-all ${activeTab === 'builder' ? 'bg-white text-navy-900 shadow-md' : 'text-gray-500 hover:text-gray-700'}`}>
-            <Target className="w-4 h-4 mr-2" /> Builder
-          </button>
-          <button 
-            onClick={() => setActiveTab('progress')} 
-            disabled={['Draft', 'Submitted', 'Returned'].includes(sheet?.status)}
-            className={`px-5 py-2.5 rounded-lg text-sm font-bold flex items-center transition-all ${activeTab === 'progress' ? 'bg-white text-navy-900 shadow-md' : 'text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed'}`}>
-            <Activity className="w-4 h-4 mr-2" /> Progress
-          </button>
-          <button 
-            onClick={() => setActiveTab('performance')} 
-            disabled={['Draft', 'Submitted', 'Returned'].includes(sheet?.status)}
-            className={`px-5 py-2.5 rounded-lg text-sm font-bold flex items-center transition-all ${activeTab === 'performance' ? 'bg-white text-navy-900 shadow-md' : 'text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed'}`}>
-            <TrendingUp className="w-4 h-4 mr-2" /> Performance
-          </button>
-        </div>
-
-        {activeTab === 'builder' && (
-          <div className="flex flex-col sm:flex-row items-center gap-6 z-10">
-            <div className="flex gap-6">
-              <div className="text-center bg-white/50 px-4 py-2 rounded-2xl border border-white/50">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Weightage</p>
-                <div className="flex items-center justify-center">
-                  <span className={`text-2xl font-black ${totalWeightage === 100 ? 'text-green-600' : 'text-orange-500'}`}>{totalWeightage}%</span>
-                  {totalWeightage === 100 && <CheckCircle className="w-5 h-5 ml-2 text-green-500" />}
+        {/* Header Action Area */}
+        <div className="flex flex-col sm:flex-row items-center gap-6 z-10">
+          {activeTab === 'builder' && (
+            <>
+              <div className="flex gap-6">
+                <div className="text-center bg-white/50 px-4 py-2 rounded-2xl border border-white/50">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Weightage</p>
+                  <div className="flex items-center justify-center">
+                    <span className={`text-2xl font-black ${totalWeightage === 100 ? 'text-green-600' : 'text-orange-500'}`}>{totalWeightage}%</span>
+                    {totalWeightage === 100 && <CheckCircle className="w-5 h-5 ml-2 text-green-500" />}
+                  </div>
                 </div>
               </div>
-            </div>
-            <button onClick={handleSubmitSheet} disabled={!isValid || !isDraft} className="px-6 py-3.5 bg-navy-900 text-white rounded-xl shadow-lg hover:bg-navy-800 disabled:opacity-50 disabled:shadow-none transition-all font-semibold text-sm w-full sm:w-auto">
-              Submit for Approval
-            </button>
-          </div>
-        )}
+              <button onClick={handleSubmitSheet} disabled={!isValid || !isDraft} className="px-6 py-3.5 bg-navy-900 text-white rounded-xl shadow-lg hover:bg-navy-800 disabled:opacity-50 disabled:shadow-none transition-all font-semibold text-sm w-full sm:w-auto">
+                Submit for Approval
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* ---------------- BUILDER TAB ---------------- */}

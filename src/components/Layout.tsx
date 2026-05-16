@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, LayoutDashboard, Target as TargetIcon, Users, Menu, X } from 'lucide-react';
+import { LogOut, LayoutDashboard, Target as TargetIcon, Users, Menu, X, Activity, AlertTriangle, Network, ShieldCheck, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 import Logo from './logo';
 import LogoMark from './tinylogo';
@@ -9,22 +9,42 @@ export default function Layout() {
   const { profile, signOut } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const getNavigation = () => {
     switch (profile?.role) {
       case 'Employee':
-        return [{ name: 'My Goals', href: '/goals', icon: TargetIcon }];
+        return [
+          { name: 'Goal Builder', href: '/goals?tab=builder', icon: TargetIcon },
+          { name: 'Check-in', href: '/goals?tab=progress', icon: Activity },
+          { name: 'Analytics', href: '/goals?tab=performance', icon: BarChart3 },
+        ];
       case 'Manager_L1':
         return [
-          { name: 'My Team', href: '/manager', icon: Users },
+          { name: 'My Team', href: '/manager?tab=team', icon: Users },
+          { name: 'Performance', href: '/manager?tab=performance', icon: Activity },
+          { name: 'Escalations', href: '/manager?tab=escalations', icon: AlertTriangle },
         ];
       case 'Admin_HR':
         return [
-          { name: 'Admin Dashboard', href: '/admin', icon: LayoutDashboard },
+          { name: 'Overview', href: '/admin?tab=overview', icon: LayoutDashboard },
+          { name: 'Org Hierarchy', href: '/admin?tab=org', icon: Network },
+          { name: 'Audit Logs', href: '/admin?tab=audit', icon: ShieldCheck },
+          { name: 'Escalations', href: '/admin?tab=escalations', icon: AlertTriangle },
+          { name: 'Analytics', href: '/admin?tab=analytics', icon: BarChart3 },
         ];
       default:
         return [];
     }
+  };
+
+  const handleSignOut = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmSignOut = async () => {
+    await signOut();
+    setShowLogoutModal(false);
   };
 
   const navigation = getNavigation();
@@ -62,7 +82,9 @@ export default function Layout() {
               </div>
               <nav className="mt-8 px-4 space-y-2">
                 {navigation.map((item) => {
-                  const isActive = location.pathname.startsWith(item.href);
+                  const isActive = item.href.includes('?') 
+                    ? location.pathname + location.search === item.href
+                    : location.pathname.startsWith(item.href);
                   return (
                     <Link
                       key={item.name}
@@ -80,10 +102,7 @@ export default function Layout() {
                   );
                 })}
                 <button
-                  onClick={() => {
-                    signOut();
-                    setIsMobileMenuOpen(false);
-                  }}
+                  onClick={handleSignOut}
                   className="flex items-center w-full px-4 py-3 text-sm font-semibold rounded-xl text-red-300 hover:bg-red-500/10 transition-all"
                 >
                   <LogOut className="mr-4 h-5 w-5" />
@@ -128,7 +147,9 @@ export default function Layout() {
             <div className="mt-4 flex-grow flex flex-col">
               <nav className="flex-1 px-4 space-y-2">
                 {navigation.map((item, index) => {
-                  const isActive = location.pathname.startsWith(item.href);
+                  const isActive = item.href.includes('?') 
+                    ? location.pathname + location.search === item.href
+                    : location.pathname.startsWith(item.href);
                   return (
                     <Link
                       key={item.name}
@@ -168,7 +189,7 @@ export default function Layout() {
                 <span className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">{profile?.role.replace('_', ' ')}</span>
               </div>
               <button
-                onClick={signOut}
+                onClick={handleSignOut}
                 className="p-2 bg-white/10 hover:bg-red-500/90 hover:text-white text-blue-100 rounded-full transition-colors backdrop-blur-sm"
                 title="Sign out"
               >
@@ -202,6 +223,38 @@ export default function Layout() {
           </div>
         </main>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-navy-900/60 backdrop-blur-md animate-fade-in">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden p-8 animate-scale-up border border-gray-100">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
+                <LogOut className="h-10 w-10 text-red-500" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-2">Wait a minute!</h3>
+              <p className="text-sm text-gray-500 font-medium leading-relaxed">
+                Are you sure you want to end your session? Any unsaved changes might be lost.
+              </p>
+              
+              <div className="mt-10 grid grid-cols-2 gap-4 w-full">
+                <button
+                  onClick={() => setShowLogoutModal(false)}
+                  className="py-4 px-6 bg-gray-100 text-gray-600 rounded-2xl text-sm font-bold hover:bg-gray-200 transition-all"
+                >
+                  Stay Here
+                </button>
+                <button
+                  onClick={confirmSignOut}
+                  className="py-4 px-6 bg-navy-900 text-white rounded-2xl text-sm font-bold shadow-lg hover:bg-navy-800 transition-all"
+                >
+                  Yes, Log Out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

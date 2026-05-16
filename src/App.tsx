@@ -16,9 +16,9 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
   
   if (profile) {
     if (allowedRoles && !allowedRoles.includes(profile.role)) {
-      if (profile.role === 'Employee') return <Navigate to="/goals" replace />;
-      if (profile.role === 'Manager_L1') return <Navigate to="/manager" replace />;
-      if (profile.role === 'Admin_HR') return <Navigate to="/admin" replace />;
+      if (profile.role === 'Employee') return <Navigate to="/goals?tab=builder" replace />;
+      if (profile.role === 'Manager_L1') return <Navigate to="/manager?tab=team" replace />;
+      if (profile.role === 'Admin_HR') return <Navigate to="/admin?tab=overview" replace />;
     }
   }
 
@@ -35,7 +35,7 @@ function App() {
           
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/goals" element={
-              <ProtectedRoute allowedRoles={['Employee', 'Manager_L1']}>
+              <ProtectedRoute allowedRoles={['Employee']}>
                 <EmployeeDashboard />
               </ProtectedRoute>
             } />
@@ -53,12 +53,23 @@ function App() {
             } />
             
             {/* Root redirect */}
-            <Route path="/" element={<Navigate to="/goals" replace />} />
+            <Route path="/" element={
+              <ProtectedRoute>
+                <HomeRedirect />
+              </ProtectedRoute>
+            } />
           </Route>
         </Routes>
       </BrowserRouter>
     </AuthProvider>
   );
 }
+
+const HomeRedirect = () => {
+  const { profile } = useAuth();
+  if (profile?.role === 'Manager_L1') return <Navigate to="/manager?tab=team" replace />;
+  if (profile?.role === 'Admin_HR') return <Navigate to="/admin?tab=overview" replace />;
+  return <Navigate to="/goals?tab=builder" replace />;
+};
 
 export default App;

@@ -1,64 +1,55 @@
-# GlowFlow - Enterprise Goal Tracking & Talent Management Portal
+# GoalFlow - Enterprise Performance & Talent Alignment Ecosystem
 
 ## Overview
-GlowFlow (formerly GoalFlow) is a modern, responsive, and highly secure enterprise goal tracking and performance management portal. It is built to align organizational objectives, streamline managerial reviews, and accelerate employee performance through continuous engagement. It enables employees to define their quarterly goals and track progress, managers to review and recognize achievements, and HR/Admins to oversee the entire organization with advanced analytics and governance.
+GoalFlow is a premium, high-performance enterprise portal designed for modern organizational goal alignment, continuous feedback, and automated HR governance. Built with a focus on visual excellence and strict security, it transforms the traditional performance review process into a dynamic, real-time ecosystem of achievement and recognition.
 
 ## Tech Stack
-*   **Frontend Framework:** React 19
-*   **Build Tool & Dev Server:** Vite
-*   **Language:** TypeScript
-*   **Styling & CSS Framework:** Tailwind CSS (v4)
-*   **Backend as a Service (BaaS):** Supabase (PostgreSQL, Authentication, Row Level Security)
-*   **Routing:** React Router (`react-router-dom`)
+*   **Core:** React 19 + TypeScript
+*   **Build Tool:** Vite
+*   **Styling:** Tailwind CSS (v4) with Custom Glassmorphism System
+*   **Backend:** Supabase (Auth, PostgreSQL, RLS)
+*   **Data Viz:** Recharts (Analytics & Calibration)
 *   **Icons:** Lucide React
-*   **Data Visualization:** Recharts
-*   **Utility Libraries:** `clsx` and `tailwind-merge`
+*   **Navigation:** React Router 7 (`react-router-dom`)
 
 ---
 
-## Key Roles & Access Levels
-The system features strict Row Level Security (RLS) managed by Supabase, tailored for three distinct roles:
-1.  **Employee:** Can create, view, update their own goals, track quarterly progress, and receive social feedback (Kudos).
-2.  **Manager (L1):** Can view their team's goals, provide feedback, approve/return goal sheets, and send corporate Kudos.
-3.  **Admin/HR:** Has enterprise oversight, manages the organizational hierarchy, views calibration analytics, monitors compliance via audit logs, and sets smart escalation thresholds.
+## Role-Based Experience
+The portal adapts its entire interface and data access based on the user's organizational role:
+
+1.  **Employee Dashboard:** Focused on personal growth. Features include the **Goal Builder**, **Quarterly Check-ins** with Pulse Sentiment, and a **Performance Hub** for tracking trends and Kudos.
+2.  **Manager Dashboard:** Focused on team leadership. Features a **Team Overview** for cyclical approvals, **Performance Analytics** to identify high/low achievers, and **Escalations** to manage submission delays.
+3.  **Admin/HR Dashboard:** Focused on enterprise oversight. Features an **Org Hierarchy Builder** with Drag & Drop management, **Audit Logs** for compliance, and **Calibration Engines** to normalize performance ratings across teams.
 
 ---
 
-## Comprehensive Feature List
+## Key Features
 
-### 1. Authentication & Security
-*   **Role-based Access Control (RBAC):** Users are securely redirected to their specific dashboard (Employee, Manager, or Admin) upon login based on their assigned role in the `profiles` table.
-*   **Row Level Security (RLS):** Data access is strictly controlled at the database level. Employees cannot see other employees' goals, ensuring absolute data privacy.
-*   **Secure Auth Flow:** Powered by Supabase Auth with custom premium UI login screens adapting to desktop and mobile devices.
+### 1. Security & Authentication
+*   **3D Login Experience:** A premium entrance featuring 3D perspective transforms, floating background animations, and secure authentication.
+*   **Custom Logout UI:** Replaces native browser dialogs with a high-fidelity modal confirmation to prevent accidental session termination.
+*   **Row Level Security (RLS):** Absolute data privacy ensured by Supabase, preventing unauthorized cross-team data access.
 
-### 2. Employee Features (Goal Lifecycle & Engagement)
-*   **Goal Sheet Creation:** Employees can define multiple goals categorized by "Thrust Areas" (e.g., Growth, Innovation) and "Unit of Measure (UOM)" (Percentage, Numeric, Date).
-*   **Dynamic Status Tracking:** Goal sheets progress through a rigid, automated lifecycle: `Draft` -> `Submitted` -> `Approved` -> `Locked`.
-*   **Quarterly Check-ins & Pulse Sentiment:** Employees submit progress for Q1, Q2, Q3, and Q4 during specified time windows. During submission, a **Pulse Sentiment** "vibe check" captures how supported the employee feels (1-5 rating).
-*   **Automated Progress Scoring:** The system automatically computes "Progress Scores" for each goal based on Actual Achievement vs. Planned Target, ensuring objective tracking.
-*   **Skill-Bridge Recommendations:** If a goal falls "Behind", the system displays contextual suggestions advising employees to explore internal learning resources or discuss blockers during 1-on-1s.
-*   **Performance Hub:** A dedicated tab featuring:
-    *   **Visual Trends (Recharts):** Quarter-over-Quarter achievement trend bars and Thrust Area weightage donut charts.
-    *   **Kudos & Recognition Cabinet:** A display of all digital badges and messages received from managers and leadership.
-    *   **Feedback Timeline:** A chronological log of all Check-in comments left by managers.
+### 2. Organizational Alignment (Admin)
+*   **Drag & Drop Hierarchy:** A visual interface for HR to map reporting lines. Drag unassigned employees directly into manager "lanes" for instant re-assignment.
+*   **Smart SLA Escalations:** Automated monitoring of goal sheet submissions. Flags "Manager Negligence" and "Employee Delays" based on configurable thresholds.
+*   **Enterprise Audit Trail:** Comprehensive logging of all modifications to finalized sheets, including JSON diffs and timestamped actor IDs.
 
-### 3. Manager Features (Team Leadership & Recognition)
-*   **Team Overview Dashboard:** Managers have a dedicated hub to view all employees assigned to their specific reporting line.
-*   **Approval Workflow & Cyclical Reviews:** Managers review pending goal sheets and quarterly check-ins, explicitly choosing to `Approve` or `Return` them with mandatory feedback.
-*   **Micro-Kudos & Social Validation:** Managers can instantly send "Kudos" (digital badges like *Early Achiever* or *Team Player* with custom messages) directly to their direct reports to foster a positive feedback culture.
-*   **Dynamic Status Badges:** Color-coded visual indicators help managers quickly identify which team members need immediate review or intervention.
+### 3. Managerial Excellence
+*   **Performance Calibration:** Recharts-powered analytics comparing team achievement scores, helping HR identify grading drift.
+*   **Feedback Lifecycle:** Seamless `Submit` -> `Review` -> `Approve/Return` workflow with mandatory feedback loops.
+*   **Social Recognition:** A "Kudos" system allowing managers to award digital badges (Appreciation, Team Player, etc.) that appear on employee profiles.
 
-### 4. Admin & HR Features (Enterprise Governance)
-*   **Overview Dashboard:** A high-level metric view of total employees, pending approvals, approved sheets, and locked sheets across the organization.
-*   **Interactive Drag-and-Drop Organogram:** A visual administrative workspace where Admins drag unassigned employees and drop them into a manager's team bucket.
-*   **Automated Calibration Engine:** Replaces basic approval rates with an advanced Recharts dashboard that calculates the **Average Team Score (%)** for every manager, helping HR easily identify "easy graders" vs. "tough graders".
-*   **Enterprise Audit Trail:** A strict compliance log tracking all modifications made to goals *after* they have been Locked (logging timestamp, user ID, and JSON diffs).
-*   **Smart Thresholds & Escalations (SLA Tracking):** An automated SLA monitoring engine with a configurable UI. Admins can set rules (e.g., *Draft Non-Submission > 80%*) to dynamically flag and escalate compliance issues before they breach.
-*   **Corporate Kudos:** Admins and HR can award high-level corporate badges (e.g., *Company Value Champion*) across the entire organization.
-*   **Achievement Report Export:** Instant CSV exports of all employee Planned Targets vs. Actual Achievements spanning all four quarters.
+### 4. Employee Engagement
+*   **Goal Builder:** Categorize goals by Thrust Areas (Growth, Innovation) with dynamic weightage calculation (must sum to 100%).
+*   **Pulse Sentiment:** A "vibe check" during check-ins to capture employee morale and support levels.
+*   **Skill-Bridge AI:** Contextual recommendations triggered when goals fall behind, suggesting learning paths and 1-on-1 topics.
 
-### 5. UI/UX & Design Aesthetics
-*   **Premium Glassmorphism Interface:** Designed with a stunning, modern aesthetic using heavily customized Tailwind CSS, frosted glass panels (`backdrop-blur`), deep mesh backgrounds (`bg-mesh-dark`), and curated typography.
-*   **Branded Identity:** Fully integrated "GlowFlow" branding with animated Logo and LogoMark transitions in the sidebar, persistent footer accreditations, and unified global layout panels.
-*   **Collapsible Sidebar Navigation:** A smooth, responsive side navigation menu with fluid hover-expand animations designed to maximize screen real estate for deep-focus work.
-*   **Fully Responsive Layout:** The entire portal scales flawlessly across ultra-wide desktop monitors, standard laptops, tablets, and mobile devices.
+## UI/UX Design System
+*   **Glassmorphism:** Heavily utilizes `backdrop-blur`, semi-transparent panels, and white-bordered cards for a modern "Apple-esque" feel.
+*   **Mesh Backgrounds:** Custom-designed dark and light mesh gradients (`bg-mesh-dark`, `bg-mesh`) for depth and premium texture.
+*   **Responsive Motion:** Powered by custom Tailwind animations (`animate-fade-in-up`, `animate-scale-up`, `animate-float`) for fluid state transitions.
+*   **Unified Sidebar:** A sophisticated, collapsible navigation system that handles role-specific deep-linking via URL search parameters.
+
+---
+*Handcrafted with precision & styled for excellence.*
