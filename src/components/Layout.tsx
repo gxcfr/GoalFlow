@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, LayoutDashboard, Target as TargetIcon, Users, Menu, X, Activity, AlertTriangle, Network, ShieldCheck, BarChart3 } from 'lucide-react';
+import { LogOut, LayoutDashboard, Target as TargetIcon, Users, Menu, X, Activity, AlertTriangle, Network, ShieldCheck, BarChart3, Radio } from 'lucide-react';
 import { useState } from 'react';
 import Logo from './logo';
 import LogoMark from './tinylogo';
@@ -28,6 +28,7 @@ export default function Layout() {
       case 'Admin_HR':
         return [
           { name: 'Overview', href: '/admin?tab=overview', icon: LayoutDashboard },
+          { name: 'Broadcast', href: '/admin?tab=broadcast', icon: Radio },
           { name: 'Org Hierarchy', href: '/admin?tab=org', icon: Network },
           { name: 'Audit Logs', href: '/admin?tab=audit', icon: ShieldCheck },
           { name: 'Escalations', href: '/admin?tab=escalations', icon: AlertTriangle },

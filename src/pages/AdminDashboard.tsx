@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Users, Target, Activity, FileDown, CheckCircle, Clock, Unlock, Network, ShieldCheck, BarChart3, AlertTriangle, Star, X } from 'lucide-react';
+import { Users, Target, Activity, FileDown, CheckCircle, Clock, Unlock, Network, ShieldCheck, BarChart3, AlertTriangle, Star, X, Radio, Megaphone, Send, Check, AlertCircle, Search } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function AdminDashboard() {
+  const { profile } = useAuth();
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
   
@@ -24,6 +26,203 @@ export default function AdminDashboard() {
   const [selectedEmpForKudos, setSelectedEmpForKudos] = useState<any | null>(null);
   const [kudosForm, setKudosForm] = useState({ message: '', badge_type: 'Appreciation' });
   const [isKudosModalOpen, setIsKudosModalOpen] = useState(false);
+
+  // Broadcast states
+  const [broadcastForm, setBroadcastForm] = useState({
+    thrust_area: '',
+    title: '',
+    description: '',
+    uom: 'Numeric',
+    target_value: '',
+    target_direction: 'Maximize',
+    weightage: 10
+  });
+  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [broadcastSearchQuery, setBroadcastSearchQuery] = useState('');
+  const [broadcastDeptFilter, setBroadcastDeptFilter] = useState('All');
+
+  const getEmployeeQuota = (empId: string) => {
+    const sheet = sheets.find((s: any) => s.user_id === empId);
+    if (!sheet) {
+      return { total: 0, remaining: 100, status: 'Not Started', goalsCount: 0 };
+    }
+    const empGoals = allGoals.filter((g: any) => g.sheet_id === sheet.id);
+    const total = empGoals.reduce((sum, g) => sum + Number(g.weightage), 0);
+    return {
+      total,
+      remaining: 100 - total,
+      status: sheet.status,
+      goalsCount: empGoals.length
+    };
+  };
+
+  const handleBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedEmployees.size === 0) {
+      alert('Please select at least one employee to broadcast to.');
+      return;
+    }
+    if (broadcastForm.weightage < 10) {
+      alert('Goal weightage must be at least 10%.');
+      return;
+    }
+
+    setIsBroadcasting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    const currentSheets = [...sheets];
+
+    try {
+      for (const empId of selectedEmployees) {
+        try {
+          let sheetId = null;
+          const existingSheet = currentSheets.find((s: any) => s.user_id === empId);
+
+          if (existingSheet) {
+            sheetId = existingSheet.id;
+          } else {
+            // Create a draft goal sheet
+            const { data: newSheet, error: sheetError } = await supabase
+              .from('goal_sheets')
+              .insert({
+                user_id: empId,
+                cycle: 'FY2026',
+                status: 'Draft'
+              })
+              .select()
+              .single();
+
+            if (sheetError) throw sheetError;
+            sheetId = newSheet.id;
+            currentSheets.push(newSheet);
+          }
+
+          // Insert goal
+          const { data: newGoal, error: goalError } = await supabase
+            .from('goals')
+            .insert({
+              sheet_id: sheetId,
+              thrust_area: broadcastForm.thrust_area,
+              title: broadcastForm.title,
+              description: broadcastForm.description,
+              uom: broadcastForm.uom,
+              target_value: broadcastForm.target_value,
+              target_direction: broadcastForm.target_direction,
+              weightage: broadcastForm.weightage
+            })
+            .select()
+            .single();
+
+          if (goalError) throw goalError;
+
+          // Insert link in shared_goal_links
+          const { error: linkError } = await supabase
+            .from('shared_goal_links')
+            .insert({
+              employee_goal_id: newGoal.id,
+              assigned_by: profile?.id,
+              assigned_to: empId
+            });
+
+          if (linkError) throw linkError;
+          successCount++;
+        } catch (err) {
+          console.error(`Error broadcasting to employee ${empId}:`, err);
+          errorCount++;
+        }
+      }
+
+      alert(`Broadcast complete! Successfully assigned goal to ${successCount} employees.` + (errorCount > 0 ? ` Failed for ${errorCount} employees.` : ''));
+      
+      setSelectedEmployees(new Set());
+      setBroadcastForm({
+        thrust_area: '',
+        title: '',
+        description: '',
+        uom: 'Numeric',
+        target_value: '',
+        target_direction: 'Maximize',
+        weightage: 10
+      });
+
+      await fetchData();
+    } catch (err: any) {
+      alert(`An error occurred during broadcasting: ${err.message}`);
+    } finally {
+      setIsBroadcasting(false);
+    }
+  };
+
+  const handleExportAuditLog = async () => {
+    try {
+      const { data: allLogs, error } = await supabase
+        .from('audit_logs')
+        .select('*, goals ( title ), profiles!changed_by ( full_name )')
+        .order('changed_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (!allLogs || allLogs.length === 0) {
+        alert('No audit logs available to export.');
+        return;
+      }
+
+      const headers = ['Timestamp', 'Changed By', 'Goal Title / Entity', 'Field', 'Old Value', 'New Value'];
+      const csvRows = [headers.join(',')];
+
+      allLogs.forEach((log: any) => {
+        const timestamp = new Date(log.changed_at).toLocaleString();
+        const changedBy = `"${(log.profiles?.full_name || 'System').replace(/"/g, '""')}"`;
+        const goalTitle = `"${(log.goals?.title || 'System/Sheet').replace(/"/g, '""')}"`;
+        
+        const oldData = log.old_data || {};
+        const newData = log.new_data || {};
+        const keys = Array.from(new Set([...Object.keys(oldData), ...Object.keys(newData)]));
+        
+        if (keys.length > 0) {
+          keys.forEach((key) => {
+            const oldVal = oldData[key] !== undefined ? JSON.stringify(oldData[key]) : '';
+            const newVal = newData[key] !== undefined ? JSON.stringify(newData[key]) : '';
+            
+            const row = [
+              `"${timestamp}"`,
+              changedBy,
+              goalTitle,
+              `"${key.replace(/"/g, '""')}"`,
+              `"${oldVal.replace(/"/g, '""')}"`,
+              `"${newVal.replace(/"/g, '""')}"`
+            ];
+            csvRows.push(row.join(','));
+          });
+        } else {
+          const row = [
+            `"${timestamp}"`,
+            changedBy,
+            goalTitle,
+            '""',
+            '""',
+            '""'
+          ];
+          csvRows.push(row.join(','));
+        }
+      });
+
+      const csvContent = "\uFEFF" + csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `GoalFlow_All_Audit_Logs_${new Date().toISOString().slice(0,10)}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      alert(`Failed to export audit logs: ${err.message}`);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -188,11 +387,6 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">System Administration</h1>
           <p className="text-sm text-gray-500 font-medium mt-1 uppercase tracking-wider">Goal Cycle: FY2026</p>
         </div>
-        <div className="flex items-center gap-4 bg-white/40 p-2 rounded-2xl shadow-inner border border-white/60">
-          <button className="flex items-center px-4 py-2 bg-white text-navy-900 rounded-xl text-sm font-bold shadow-sm hover:shadow-md transition-all">
-            <FileDown className="w-4 h-4 mr-2" /> Export Audit Log
-          </button>
-        </div>
       </div>
 
       {activeTab === 'overview' && (
@@ -301,6 +495,396 @@ export default function AdminDashboard() {
             </div>
           </div>
         </>
+      )}
+
+      {activeTab === 'broadcast' && (
+        <div className="space-y-8 animate-fade-in-up">
+          {/* Banner Header Card */}
+          <div className="relative overflow-hidden rounded-[2rem] p-8 bg-gradient-to-br from-navy-900 via-navy-950 to-blue-950 text-white shadow-2xl border border-white/10 group">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.2),transparent_60%)]"></div>
+            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-[100px] -z-10 group-hover:bg-blue-500/20 transition-all duration-500"></div>
+            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div>
+                <span className="px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] bg-blue-500/20 text-blue-300 border border-blue-400/20">Strategic Governance</span>
+                <h2 className="text-3xl font-black tracking-tight mt-3 flex items-center">
+                  <Megaphone className="w-8 h-8 mr-3 text-blue-400 animate-pulse" /> Strategic Goal Broadcasting
+                </h2>
+                <p className="text-sm text-blue-100/80 font-medium mt-2 max-w-3xl leading-relaxed">
+                  Directly deploy organization-wide objectives, shared OKRs, or compliance goals into selected employee goal sheets. Target specific departments, view real-time quota remaining, and ensure aligned accountability.
+                </p>
+              </div>
+              <div className="flex flex-col items-center justify-center bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 min-w-[150px] shadow-lg self-stretch md:self-auto text-center">
+                <span className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">Active Audience</span>
+                <span className="text-3xl font-black text-white mt-1">{selectedEmployees.size}</span>
+                <span className="text-xs font-semibold text-blue-200 mt-1">Employees Selected</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Workspace */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+            {/* Left Panel: Form Template Builder */}
+            <div className="xl:col-span-5 glass-panel rounded-[2rem] p-8 border border-white/60 bg-white/40 shadow-xl space-y-6">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center tracking-tight">
+                  <Radio className="w-5 h-5 mr-2 text-navy-600" /> Goal Specifications
+                </h3>
+                <p className="text-xs text-gray-500 font-medium mt-1">Design the strategic initiative templates below.</p>
+              </div>
+
+              <form onSubmit={handleBroadcast} className="space-y-5">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Thrust Area</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Operational Security, Revenue Expansion"
+                    value={broadcastForm.thrust_area}
+                    onChange={e => setBroadcastForm({ ...broadcastForm, thrust_area: e.target.value })}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 sm:text-sm font-bold shadow-sm"
+                  />
+                  {/* Suggestions Pills */}
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {['Product Excellence', 'Revenue Growth', 'Customer Success', 'Compliance & Security'].map(area => (
+                      <button
+                        key={area}
+                        type="button"
+                        onClick={() => setBroadcastForm({ ...broadcastForm, thrust_area: area })}
+                        className="px-2.5 py-1 bg-white hover:bg-navy-50 border border-gray-100 rounded-lg text-[10px] font-bold text-gray-600 transition-colors"
+                      >
+                        + {area}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Goal Title</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Implement Multi-Factor Authentication Compliance"
+                    value={broadcastForm.title}
+                    onChange={e => setBroadcastForm({ ...broadcastForm, title: e.target.value })}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 sm:text-sm font-bold shadow-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Description</label>
+                  <textarea
+                    rows={4}
+                    required
+                    placeholder="Describe the scope, background context, and alignment requirements of this shared strategic goal..."
+                    value={broadcastForm.description}
+                    onChange={e => setBroadcastForm({ ...broadcastForm, description: e.target.value })}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 sm:text-sm font-medium shadow-sm"
+                  ></textarea>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Unit of Measure</label>
+                    <select
+                      value={broadcastForm.uom}
+                      onChange={e => setBroadcastForm({ ...broadcastForm, uom: e.target.value })}
+                      className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 sm:text-sm font-bold shadow-sm"
+                    >
+                      <option>Numeric</option>
+                      <option>%</option>
+                      <option>Timeline</option>
+                      <option>Zero-based</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Target Direction</label>
+                    <select
+                      value={broadcastForm.target_direction}
+                      onChange={e => setBroadcastForm({ ...broadcastForm, target_direction: e.target.value })}
+                      className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 sm:text-sm font-bold shadow-sm"
+                    >
+                      <option>Maximize</option>
+                      <option>Minimize</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Target Value</label>
+                  <input
+                    type={broadcastForm.uom === 'Timeline' ? 'date' : 'text'}
+                    required
+                    placeholder={broadcastForm.uom === 'Timeline' ? '' : 'e.g. 100, 95%'}
+                    value={broadcastForm.target_value}
+                    onChange={e => setBroadcastForm({ ...broadcastForm, target_value: e.target.value })}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 sm:text-sm font-bold shadow-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 flex justify-between">
+                    <span>Goal Weightage Allocation</span>
+                    <span className="text-navy-700 font-black">{broadcastForm.weightage}%</span>
+                  </label>
+                  <div className="bg-white p-4 rounded-xl border border-gray-100 flex items-center space-x-4 shadow-sm mt-1">
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      step="5"
+                      value={broadcastForm.weightage}
+                      onChange={e => setBroadcastForm({ ...broadcastForm, weightage: Number(e.target.value) })}
+                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-navy-900"
+                    />
+                    <input
+                      type="number"
+                      min="10"
+                      max="100"
+                      value={broadcastForm.weightage}
+                      onChange={e => setBroadcastForm({ ...broadcastForm, weightage: Math.max(10, Math.min(100, Number(e.target.value))) })}
+                      className="w-16 px-2 py-1.5 text-center font-bold text-sm bg-gray-50 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-400 font-semibold mt-1">Weightage must be at least 10% per database check constraint guidelines.</p>
+                </div>
+
+                <div className="pt-4">
+                  <button
+                    type="submit"
+                    disabled={isBroadcasting || selectedEmployees.size === 0}
+                    className="w-full py-4 bg-gradient-to-r from-navy-900 to-blue-900 text-white rounded-2xl shadow-xl hover:shadow-2xl disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 transition-all text-sm font-black tracking-widest uppercase flex items-center justify-center gap-2"
+                  >
+                    {isBroadcasting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        Broadcasting Goal...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Deploy Broadcast ({selectedEmployees.size})
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Right Panel: Audience Selection & Quota Audit */}
+            <div className="xl:col-span-7 space-y-6">
+              <div className="glass-panel rounded-[2rem] p-8 border border-white/60 bg-white/40 shadow-xl flex flex-col min-h-[550px]">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 tracking-tight flex items-center">
+                      <Users className="w-5 h-5 mr-2 text-navy-600" /> Target Employee Roster
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium mt-1">Select recipients & audit weightage allocations.</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-stretch sm:self-auto">
+                    <button
+                      onClick={() => {
+                        const filtered = employees.filter(e => {
+                          const nameMatch = e.full_name.toLowerCase().includes(broadcastSearchQuery.toLowerCase());
+                          const deptMatch = broadcastDeptFilter === 'All' || e.department === broadcastDeptFilter;
+                          return nameMatch && deptMatch;
+                        });
+                        const allSelected = filtered.every(e => selectedEmployees.has(e.id));
+                        if (allSelected) {
+                          const updated = new Set(selectedEmployees);
+                          filtered.forEach(e => updated.delete(e.id));
+                          setSelectedEmployees(updated);
+                        } else {
+                          const updated = new Set(selectedEmployees);
+                          filtered.forEach(e => updated.add(e.id));
+                          setSelectedEmployees(updated);
+                        }
+                      }}
+                      className="px-3 py-2 bg-white hover:bg-navy-50 text-navy-800 border border-gray-200 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Toggle All Visible
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filters Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 bg-white/10 rounded-2xl mt-4 px-2">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search employees..."
+                      value={broadcastSearchQuery}
+                      onChange={e => setBroadcastSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 text-sm font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <select
+                      value={broadcastDeptFilter}
+                      onChange={e => setBroadcastDeptFilter(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 text-sm font-bold"
+                    >
+                      {['All', ...Array.from(new Set(employees.map(e => e.department).filter(Boolean)))].map(dept => (
+                        <option key={dept} value={dept}>{dept === 'All' ? 'All Departments' : dept}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Employees Cards Container */}
+                <div className="flex-1 overflow-y-auto max-h-[500px] pr-2 mt-4 space-y-3 scrollbar-thin">
+                  {(() => {
+                    const filtered = employees.filter(e => {
+                      const nameMatch = e.full_name.toLowerCase().includes(broadcastSearchQuery.toLowerCase());
+                      const deptMatch = broadcastDeptFilter === 'All' || e.department === broadcastDeptFilter;
+                      return nameMatch && deptMatch;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="py-12 text-center text-gray-400 font-medium text-sm italic">
+                          No employees matched the current filters.
+                        </div>
+                      );
+                    }
+
+                    return filtered.map(emp => {
+                      const isSelected = selectedEmployees.has(emp.id);
+                      const quota = getEmployeeQuota(emp.id);
+                      const proposedTotal = quota.total + (isSelected ? broadcastForm.weightage : 0);
+                      const isOverAllocated = proposedTotal > 100;
+                      
+                      // Fetch manager name
+                      const manager = managers.find(m => m.id === emp.manager_id);
+                      const managerName = manager ? manager.full_name : 'No Manager';
+
+                      return (
+                        <div
+                          key={emp.id}
+                          onClick={() => {
+                            const updated = new Set(selectedEmployees);
+                            if (updated.has(emp.id)) {
+                              updated.delete(emp.id);
+                            } else {
+                              updated.add(emp.id);
+                            }
+                            setSelectedEmployees(updated);
+                          }}
+                          className={`group cursor-pointer rounded-2xl p-5 border transition-all duration-300 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                            isSelected
+                              ? 'bg-gradient-to-br from-blue-50/80 to-white border-blue-300 shadow-md ring-1 ring-blue-200'
+                              : 'bg-white/80 border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm'
+                          }`}
+                        >
+                          {/* Selected Left Highlight line */}
+                          <div className={`absolute left-0 top-0 bottom-0 w-1.5 transition-all ${
+                            isSelected ? 'bg-blue-600' : 'bg-transparent'
+                          }`}></div>
+
+                          <div className="flex items-center gap-4 flex-1">
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              isSelected
+                                ? 'border-blue-600 bg-blue-600 text-white'
+                                : 'border-gray-300 group-hover:border-gray-400'
+                            }`}>
+                              {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+
+                            {/* Avatar */}
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-navy-900 to-blue-700 text-white flex items-center justify-center text-base font-bold shadow-md shrink-0">
+                              {emp.full_name.charAt(0)}
+                            </div>
+
+                            {/* Info */}
+                            <div className="space-y-0.5">
+                              <h4 className="text-sm font-extrabold text-gray-900 flex items-center gap-1.5">
+                                {emp.full_name}
+                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider
+                                  ${quota.status === 'Not Started' ? 'bg-gray-100 text-gray-500' : ''}
+                                  ${quota.status === 'Draft' ? 'bg-amber-100 text-amber-700' : ''}
+                                  ${quota.status.includes('Submitted') ? 'bg-blue-100 text-blue-700' : ''}
+                                  ${quota.status.includes('Approved') ? 'bg-green-100 text-green-700' : ''}
+                                  ${quota.status === 'Locked' ? 'bg-red-100 text-red-700' : ''}
+                                `}>
+                                  {quota.status}
+                                </span>
+                              </h4>
+                              <p className="text-xs text-gray-500 font-semibold">{emp.email}</p>
+                              <div className="flex flex-wrap gap-x-2 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                <span>Dept: {emp.department || 'General'}</span>
+                                <span>•</span>
+                                <span>Mgr: {managerName}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quota indicator right side */}
+                          <div className="w-full md:w-56 space-y-2 shrink-0 pt-2 md:pt-0">
+                            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider">
+                              <span className="text-gray-400">Quota Allocation</span>
+                              {isOverAllocated ? (
+                                <span className="text-red-600 flex items-center gap-0.5 font-black">
+                                  <AlertCircle className="w-3 h-3" /> Exceeds: {proposedTotal}%
+                                </span>
+                              ) : isSelected ? (
+                                <span className="text-blue-600 font-bold">Proposed: {proposedTotal}%</span>
+                              ) : (
+                                <span className="text-navy-900 font-bold">Current: {quota.total}%</span>
+                              )}
+                            </div>
+
+                            {/* visual progress bar */}
+                            <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden flex shadow-inner relative border border-gray-100">
+                              {/* Current allocated weightage */}
+                              <div
+                                className="h-full bg-navy-800 transition-all duration-500 rounded-l-full"
+                                style={{ width: `${Math.min(quota.total, 100)}%` }}
+                              ></div>
+
+                              {/* Broadcast weightage addition (pulsing preview) */}
+                              {isSelected && !isOverAllocated && (
+                                <div
+                                  className="h-full bg-blue-500 bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[bar-progress_1s_linear_infinite] transition-all duration-500"
+                                  style={{ width: `${Math.min(broadcastForm.weightage, 100 - quota.total)}%` }}
+                                ></div>
+                              )}
+
+                              {/* Over allocated part (red) */}
+                              {isSelected && isOverAllocated && (
+                                <>
+                                  <div
+                                    className="h-full bg-blue-500 bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[bar-progress_1s_linear_infinite] transition-all duration-500"
+                                    style={{ width: `${Math.min(broadcastForm.weightage - (proposedTotal - 100), 100 - quota.total)}%` }}
+                                  ></div>
+                                  <div
+                                    className="h-full bg-red-500 transition-all duration-500"
+                                    style={{ width: `${proposedTotal - 100}%` }}
+                                  ></div>
+                                </>
+                              )}
+                            </div>
+
+                            {/* Details text */}
+                            <div className="flex justify-between items-center text-[10px] font-bold text-gray-500">
+                              <span>Remaining Quota:</span>
+                              <span className={quota.remaining <= 0 ? 'text-red-500 font-extrabold' : 'font-extrabold text-gray-700'}>
+                                {quota.remaining}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {activeTab === 'org' && (
@@ -441,9 +1025,14 @@ export default function AdminDashboard() {
 
       {activeTab === 'audit' && (
         <div className="glass-panel rounded-3xl overflow-hidden shadow-sm border border-white/40">
-          <div className="p-6 border-b border-gray-100 bg-white/40">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><ShieldCheck className="w-5 h-5 mr-2 text-navy-600" /> Compliance & Audit Log</h2>
-            <p className="text-sm text-gray-500 font-medium mt-1">Immutable record of all goal sheet state changes.</p>
+          <div className="p-6 border-b border-gray-100 bg-white/40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center tracking-tight"><ShieldCheck className="w-5 h-5 mr-2 text-navy-600" /> Compliance & Audit Log</h2>
+              <p className="text-sm text-gray-500 font-medium mt-1">Immutable record of all goal sheet state changes.</p>
+            </div>
+            <button onClick={handleExportAuditLog} className="flex items-center justify-center px-4 py-2.5 bg-navy-900 hover:bg-navy-800 text-white rounded-xl text-sm font-bold shadow-sm transition-all sm:self-center self-stretch">
+              <FileDown className="w-4 h-4 mr-2" /> Export Audit Log
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-100">
